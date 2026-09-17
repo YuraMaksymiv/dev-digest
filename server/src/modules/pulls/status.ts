@@ -1,4 +1,4 @@
-import type { PrStatus } from '@devdigest/shared';
+import type { PrMeta, PrStatus } from '@devdigest/shared';
 
 /**
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
@@ -28,6 +28,19 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
     else if (r.severity === 'SUGGESTION') c.suggestion += 1;
   }
   return c;
+}
+
+/**
+ * Tally → wire shape for the list's findings column: severity-enum keys, so the
+ * client can feed them straight to SeverityBadge. A review with no findings (no
+ * tally) reads as all-zero, which is different from a never-reviewed PR (null).
+ */
+export function toSeverityBreakdown(counts?: SeverityCounts): NonNullable<PrMeta['findings']> {
+  return {
+    CRITICAL: counts?.critical ?? 0,
+    WARNING: counts?.warning ?? 0,
+    SUGGESTION: counts?.suggestion ?? 0,
+  };
 }
 
 /**

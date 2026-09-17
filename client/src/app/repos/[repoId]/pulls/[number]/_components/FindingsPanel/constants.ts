@@ -8,6 +8,9 @@ export const SEVERITY_ORDER: Record<string, number> = {
   INFO: 3,
 };
 
+/** Severities the counters render, in display order (always all three, even at 0). */
+export const SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;
+
 /** Confidence below this is hidden when "hide low confidence" is on. */
 export const LOW_CONFIDENCE_THRESHOLD = 0.65;
 

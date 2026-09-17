@@ -256,6 +256,35 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await broken.close();
   });
 
+  it('findings: the PR list carries the latest review\'s per-severity breakdown', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Sev Rev', provider: 'openai', model: 'gpt-4.1', system_prompt: 'rev' },
+      })
+    ).json();
+
+    // Never reviewed → null, which the UI renders as a dash (not "0 findings").
+    const before = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(before.find((p: { id: string }) => p.id === pr.id).findings ?? null).toBeNull();
+
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // The fixture's WARNING is dropped by grounding (line 999 isn't in the diff),
+    // so the breakdown counts what was PERSISTED: one critical, nothing else.
+    const listed = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(listed.find((p: { id: string }) => p.id === pr.id).findings).toEqual({
+      CRITICAL: 1,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

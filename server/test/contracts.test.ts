@@ -237,6 +237,33 @@ describe('AI contracts parse fixtures', () => {
     const { cost_usd: _omitted, ...unreviewed } = { ...pr, cost_usd: 0.014 };
     expect(PrMeta.parse(unreviewed).cost_usd ?? null).toBeNull();
   });
+
+  it('PrMeta carries the latest review\'s per-severity findings breakdown', () => {
+    const base = {
+      number: 482,
+      title: 'Add rate limiting to public API endpoints',
+      author: 'marisa.koch',
+      branch: 'feat/rate-limit-public',
+      base: 'main',
+      head_sha: 'abc1234',
+      additions: 247,
+      deletions: 38,
+      files_count: 9,
+      status: 'needs_review' as const,
+    };
+    const reviewed = PrMeta.parse({
+      ...base,
+      findings: { CRITICAL: 2, WARNING: 2, SUGGESTION: 2 },
+    });
+    expect(reviewed.findings).toEqual({ CRITICAL: 2, WARNING: 2, SUGGESTION: 2 });
+
+    // Never reviewed → null; legacy/list-less payloads simply omit the key.
+    expect(PrMeta.parse({ ...base, findings: null }).findings ?? null).toBeNull();
+    expect(PrMeta.parse(base).findings ?? null).toBeNull();
+
+    // A partial breakdown is a contract violation — all three keys are required.
+    expect(() => PrMeta.parse({ ...base, findings: { CRITICAL: 1 } })).toThrow();
+  });
 });
 
 describe('platform DTOs', () => {

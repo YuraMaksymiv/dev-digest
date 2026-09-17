@@ -6,7 +6,12 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import {
+  deriveReviewStatus,
+  rollupSeverities,
+  toSeverityBreakdown,
+  STALE_DAYS,
+} from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +69,19 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('toSeverityBreakdown', () => {
+  it('maps the tally onto the wire\'s severity-enum keys', () => {
+    expect(toSeverityBreakdown({ critical: 2, warning: 1, suggestion: 0 })).toEqual({
+      CRITICAL: 2,
+      WARNING: 1,
+      SUGGESTION: 0,
+    });
+  });
+
+  it('reads all-zero for a review with no findings (distinct from an unreviewed PR)', () => {
+    expect(toSeverityBreakdown(undefined)).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
   });
 });
