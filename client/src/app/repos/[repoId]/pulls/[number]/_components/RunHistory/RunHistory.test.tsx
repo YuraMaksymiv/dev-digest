@@ -25,6 +25,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     duration_ms: 1000,
     tokens_in: 100,
     tokens_out: 50,
+    cost_usd: 0.0013,
     findings_count: 0,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
@@ -41,6 +42,23 @@ function renderRuns(runs: RunSummary[]) {
     </NextIntlClientProvider>,
   );
 }
+
+describe("RunHistory — tokens · cost", () => {
+  it("shows the combined token count and cost on a settled run", () => {
+    renderRuns([run({ tokens_in: 9000, tokens_out: 119, cost_usd: 0.0013 })]);
+    expect(screen.getByText("9,119 tok · $0.0013")).toBeTruthy();
+  });
+
+  it("renders an em dash when the run's model has no known price", () => {
+    renderRuns([run({ tokens_in: 9000, tokens_out: 119, cost_usd: null })]);
+    expect(screen.getByText("9,119 tok · —")).toBeTruthy();
+  });
+
+  it("omits the line entirely on a failed run", () => {
+    renderRuns([run({ status: "failed", error: "429 quota exceeded", cost_usd: null })]);
+    expect(screen.queryByText(/tok ·/)).toBeNull();
+  });
+});
 
 describe("RunHistory — outcome badge", () => {
   it("a done run WITH blockers reads 'rejected' (never green 'done') + shows the score ring", () => {

@@ -19,8 +19,15 @@ const TRACE: RunTrace = {
   ],
 };
 
+// Per-test stats override, so one suite can cover both a priced trace and a
+// legacy one persisted before `cost_usd` existed (TRACE itself has no key).
+let statsOverride: Partial<RunTrace["stats"]> = {};
+
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({
+    data: { ...TRACE, stats: { ...TRACE.stats, ...statsOverride } },
+    isLoading: false,
+  }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -28,7 +35,10 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  statsOverride = {};
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -45,6 +55,19 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("Stats")).toBeInTheDocument();
     expect(screen.getByText("2/2 passed")).toBeInTheDocument();
     expect(screen.getByText("Tool calls")).toBeInTheDocument();
+  });
+
+  it("shows the run cost in the stats row", () => {
+    statsOverride = { cost_usd: 0.06 };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("$0.060")).toBeInTheDocument();
+  });
+
+  it("shows an em dash for a trace persisted before cost was recorded", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   it("switches to the live log tab", () => {

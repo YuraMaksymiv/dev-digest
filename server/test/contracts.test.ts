@@ -12,6 +12,8 @@ import {
   EvalRun,
   MemoryItem,
   RunTrace,
+  RunSummary,
+  PrMeta,
   Settings,
   Repo,
   PrDetail,
@@ -166,6 +168,74 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+
+  it('RunTrace stats carry cost, and traces written before cost existed still parse', () => {
+    const base = {
+      config: { agent: 'Security Reviewer', model: 'gpt-4.1', pr: 482, source: 'local' },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '{}',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    };
+    const priced = RunTrace.parse({
+      ...base,
+      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed', cost_usd: 0.06 },
+    });
+    expect(priced.stats.cost_usd).toBe(0.06);
+
+    // Legacy document: the key is simply absent. `cost_usd` is nullish for
+    // exactly this reason — getRunTrace casts instead of parsing.
+    const legacy = RunTrace.parse({
+      ...base,
+      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed' },
+    });
+    expect(legacy.stats.cost_usd ?? null).toBeNull();
+  });
+
+  it('RunSummary carries a nullable cost; PrMeta a nullish one', () => {
+    const summary = RunSummary.parse({
+      run_id: 'r1',
+      agent_id: 'a1',
+      agent_name: 'Security Reviewer',
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
+      status: 'done',
+      error: null,
+      duration_ms: 8200,
+      tokens_in: 9000,
+      tokens_out: 119,
+      cost_usd: 0.0013,
+      findings_count: 3,
+      grounding: '3/3 passed',
+      ran_at: '2026-06-13T18:52:51.000Z',
+      score: 38,
+      blockers: 2,
+    });
+    expect(summary.cost_usd).toBe(0.0013);
+    // A failed run, or a model with no known price, reports null — not 0.
+    expect(RunSummary.parse({ ...summary, cost_usd: null }).cost_usd).toBeNull();
+
+    const pr = PrMeta.parse({
+      number: 482,
+      title: 'Add rate limiting to public API endpoints',
+      author: 'marisa.koch',
+      branch: 'feat/rate-limit-public',
+      base: 'main',
+      head_sha: 'abc1234',
+      additions: 247,
+      deletions: 38,
+      files_count: 9,
+      status: 'needs_review',
+      score: 61,
+      cost_usd: 0.014,
+    });
+    expect(pr.cost_usd).toBe(0.014);
+    // Never-reviewed PR: the field is absent entirely.
+    const { cost_usd: _omitted, ...unreviewed } = { ...pr, cost_usd: 0.014 };
+    expect(PrMeta.parse(unreviewed).cost_usd ?? null).toBeNull();
   });
 });
 
