@@ -5,6 +5,7 @@
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "initial data fetch settles" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to a repo's PRs (≥1 repo loaded)" },
-    { "cmd": ["wait", "--text", "Pull Requests"], "label": "PR list page heading renders" }
+    { "cmd": ["wait", "--text", "Pull Requests"], "label": "PR list page heading renders" },
+    { "cmd": ["wait", "--text", "Findings"], "label": "the list's FINDINGS column header renders" }
   ]
 }

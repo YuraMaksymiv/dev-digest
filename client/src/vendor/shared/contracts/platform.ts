@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { FindingCategory, Severity } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -154,6 +155,22 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/**
+ * One read-only finding preview for the PR list's hover popover. A trimmed
+ * `Finding`: no id to act on, no suggestion, no trifecta payload — the list
+ * never mutates findings, that happens on the PR page.
+ */
+export const PrFindingPreview = z.object({
+  severity: Severity,
+  category: FindingCategory,
+  title: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  confidence: z.number().min(0).max(1),
+  rationale: z.string(),
+});
+export type PrFindingPreview = z.infer<typeof PrFindingPreview>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -170,9 +187,22 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
-  // Cost of the latest COMPLETED run (list endpoint only; null until reviewed,
-  // or when that run's model has no known price).
+  // Summed cost of every COMPLETED run on this PR (list endpoint only; null
+  // when the PR has no completed run, or when none of them had a known price).
   cost_usd: z.number().nullish(),
+  // Per-severity finding counts from the latest review (list endpoint only;
+  // null until the PR has been reviewed).
+  findings: z
+    .object({
+      CRITICAL: z.number().int(),
+      WARNING: z.number().int(),
+      SUGGESTION: z.number().int(),
+    })
+    .nullish(),
+  // A few of that same review's findings for the list's hover preview (list
+  // endpoint only). Capped server-side — `findings` above carries the real
+  // totals, so the popover header can say "N findings in this run".
+  findings_preview: z.array(PrFindingPreview).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

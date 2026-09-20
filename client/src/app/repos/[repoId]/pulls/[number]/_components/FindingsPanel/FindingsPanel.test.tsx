@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
@@ -51,5 +51,49 @@ describe("FindingsPanel (smoke)", () => {
   it("shows the empty state when nothing matches", () => {
     renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.getByText("No findings match")).toBeInTheDocument();
+  });
+});
+
+const MANY: FindingRecord[] = [
+  FINDINGS[0]!,
+  { ...FINDINGS[0]!, id: "f2", title: "Second critical" },
+  { ...FINDINGS[0]!, id: "f3", severity: "WARNING", title: "A warning" },
+];
+
+function counterLabels() {
+  const group = screen.getByRole("group", { name: "Findings by severity" });
+  return Array.from(group.querySelectorAll("button")).map((b) => b.textContent);
+}
+
+describe("FindingsPanel severity counters", () => {
+  it("shows one counter per severity present, with its count", () => {
+    renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
+    // No SUGGESTION in this run → no SUGGESTION pill.
+    expect(counterLabels()).toEqual(["Critical2", "Warning1"]);
+  });
+
+  it("hides the counter row when there are no findings", () => {
+    renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
+    expect(screen.queryByRole("group", { name: "Findings by severity" })).not.toBeInTheDocument();
+  });
+
+  it("clicking a severity shows only its findings; clicking again shows all", () => {
+    renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
+    const critical = screen.getByTitle("Show only CRITICAL findings");
+
+    fireEvent.click(critical);
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.getByText("Second critical")).toBeInTheDocument();
+    expect(screen.queryByText("A warning")).not.toBeInTheDocument();
+    expect(critical).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByTitle("Show all severities"));
+    expect(screen.getByText("A warning")).toBeInTheDocument();
+  });
+
+  it("keeps total counts while a filter is active", () => {
+    renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
+    fireEvent.click(screen.getByTitle("Show only WARNING findings"));
+    expect(counterLabels()).toEqual(["Critical2", "Warning1"]);
   });
 });

@@ -237,6 +237,54 @@ describe('AI contracts parse fixtures', () => {
     const { cost_usd: _omitted, ...unreviewed } = { ...pr, cost_usd: 0.014 };
     expect(PrMeta.parse(unreviewed).cost_usd ?? null).toBeNull();
   });
+
+  it('PrMeta carries the latest review\'s per-severity findings breakdown', () => {
+    const base = {
+      number: 482,
+      title: 'Add rate limiting to public API endpoints',
+      author: 'marisa.koch',
+      branch: 'feat/rate-limit-public',
+      base: 'main',
+      head_sha: 'abc1234',
+      additions: 247,
+      deletions: 38,
+      files_count: 9,
+      status: 'needs_review' as const,
+    };
+    const reviewed = PrMeta.parse({
+      ...base,
+      findings: { CRITICAL: 2, WARNING: 2, SUGGESTION: 2 },
+    });
+    expect(reviewed.findings).toEqual({ CRITICAL: 2, WARNING: 2, SUGGESTION: 2 });
+
+    // Never reviewed → null; legacy/list-less payloads simply omit the key.
+    expect(PrMeta.parse({ ...base, findings: null }).findings ?? null).toBeNull();
+    expect(PrMeta.parse(base).findings ?? null).toBeNull();
+
+    // A partial breakdown is a contract violation — all three keys are required.
+    expect(() => PrMeta.parse({ ...base, findings: { CRITICAL: 1 } })).toThrow();
+
+    // The hover preview rides along on the same payload.
+    const withPreview = PrMeta.parse({
+      ...base,
+      findings: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 },
+      findings_preview: [
+        {
+          severity: 'CRITICAL',
+          category: 'security',
+          title: 'Hardcoded Stripe secret key in commit',
+          file: 'src/config.ts',
+          start_line: 12,
+          confidence: 0.98,
+          rationale: 'A live key is committed in source.',
+        },
+      ],
+    });
+    expect(withPreview.findings_preview).toHaveLength(1);
+    // A preview carries no finding id and no action affordance by design.
+    expect(withPreview.findings_preview![0]).not.toHaveProperty('id');
+    expect(PrMeta.parse({ ...base, findings_preview: [] }).findings_preview).toEqual([]);
+  });
 });
 
 describe('platform DTOs', () => {
