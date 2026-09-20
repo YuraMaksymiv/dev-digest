@@ -16,11 +16,13 @@ export function visibleFindings(
 }
 
 /**
- * Count findings per severity, in SEVERITIES order. Every severity is reported —
- * a level with no findings shows 0 rather than disappearing, so the row doesn't
- * reflow as findings are accepted/dismissed. Counts cover ALL findings of the
- * run (dismissed included), matching the cards the panel actually renders.
+ * Count findings per severity, in SEVERITIES order. Only severities this run
+ * actually produced get an entry — a level with no findings is left out rather
+ * than shown as 0. Counts cover ALL findings of the run (dismissed included),
+ * matching the cards the panel renders.
  */
 export function severityCounts(findings: FindingRecord[]): Array<[string, number]> {
-  return SEVERITIES.map((sev) => [sev, findings.filter((f) => f.severity === sev).length]);
+  return SEVERITIES.map(
+    (sev) => [sev, findings.filter((f) => f.severity === sev).length] as [string, number],
+  ).filter(([, count]) => count > 0);
 }

@@ -214,7 +214,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
-  it('cost: persisted per run, surfaced on the PR list from the latest COMPLETED run', async () => {
+  it('cost: persisted per run, surfaced on the PR list as the SUM of completed runs', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const agent = (
@@ -235,13 +235,20 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // ...and the PR list shows it.
     const listed = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     expect(listed.find((p: { id: string }) => p.id === pr.id).cost_usd).toBe(0.001);
+
+    // A SECOND review adds to the bill rather than replacing it — the column
+    // answers "what has reviewing this PR cost so far".
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const summed = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(summed.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeCloseTo(0.002, 6);
     await app.close();
 
-    // A LATER failed run records no cost, and must not blank the list: the
-    // column tracks the latest *completed* run, so the $0.001 above survives.
+    // A LATER failed run records no cost and must not change the total: only
+    // completed runs are summed, so $0.002 survives.
     const broken = await appWith({ not: 'a review' });
     await broken.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
-    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 3 });
 
     const afterFailure = await pg.handle.db
       .select()
@@ -252,7 +259,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(failed!.costUsd).toBeNull();
 
     const relisted = (await broken.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
-    expect(relisted.find((p: { id: string }) => p.id === pr.id).cost_usd).toBe(0.001);
+    expect(relisted.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeCloseTo(0.002, 6);
     await broken.close();
   });
 
@@ -269,7 +276,9 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
     // Never reviewed → null, which the UI renders as a dash (not "0 findings").
     const before = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
-    expect(before.find((p: { id: string }) => p.id === pr.id).findings ?? null).toBeNull();
+    const unreviewed = before.find((p: { id: string }) => p.id === pr.id);
+    expect(unreviewed.findings ?? null).toBeNull();
+    expect(unreviewed.findings_preview ?? null).toBeNull();
 
     await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
     await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
@@ -277,10 +286,17 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // The fixture's WARNING is dropped by grounding (line 999 isn't in the diff),
     // so the breakdown counts what was PERSISTED: one critical, nothing else.
     const listed = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
-    expect(listed.find((p: { id: string }) => p.id === pr.id).findings).toEqual({
-      CRITICAL: 1,
-      WARNING: 0,
-      SUGGESTION: 0,
+    const row = listed.find((p: { id: string }) => p.id === pr.id);
+    expect(row.findings).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+
+    // The same review also feeds the list's read-only hover preview.
+    expect(row.findings_preview).toHaveLength(1);
+    expect(row.findings_preview[0]).toMatchObject({
+      severity: 'CRITICAL',
+      category: 'security',
+      title: 'Hardcoded Stripe secret key',
+      file: 'src/config.ts',
+      start_line: 11,
     });
     await app.close();
   });

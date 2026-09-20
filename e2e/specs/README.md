@@ -2,8 +2,8 @@
 
 Feature/technical specifications for `e2e/` — not to be confused with
 [`flows/`](../flows), which holds the runnable `*.flow.json` test flows.
-Empty for now; add one file per spec and list it below.
+Add one file per spec and list it below.
 
 | Spec | Status |
 |---|---|
-| _(none yet)_ | |
+| [coverage.md](coverage.md) — journeys covered, what is deliberately out of scope, how to add a flow | implemented |

@@ -66,9 +66,10 @@ function counterLabels() {
 }
 
 describe("FindingsPanel severity counters", () => {
-  it("shows every severity with its count, including the ones at zero", () => {
+  it("shows one counter per severity present, with its count", () => {
     renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
-    expect(counterLabels()).toEqual(["Critical2", "Warning1", "Suggestion0"]);
+    // No SUGGESTION in this run → no SUGGESTION pill.
+    expect(counterLabels()).toEqual(["Critical2", "Warning1"]);
   });
 
   it("hides the counter row when there are no findings", () => {
@@ -93,12 +94,6 @@ describe("FindingsPanel severity counters", () => {
   it("keeps total counts while a filter is active", () => {
     renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
     fireEvent.click(screen.getByTitle("Show only WARNING findings"));
-    expect(counterLabels()).toEqual(["Critical2", "Warning1", "Suggestion0"]);
-  });
-
-  it("filtering to an empty severity falls through to the empty state", () => {
-    renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
-    fireEvent.click(screen.getByTitle("Show only SUGGESTION findings"));
-    expect(screen.getByText("No findings match")).toBeInTheDocument();
+    expect(counterLabels()).toEqual(["Critical2", "Warning1"]);
   });
 });

@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  GitHubClient,
+  PrReviewComment,
+  PrFindingPreview,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -10,6 +16,7 @@ import { AppError, NotFoundError } from '../../platform/errors.js';
 import {
   deriveReviewStatus,
   rollupSeverities,
+  toFindingPreviews,
   toSeverityBreakdown,
   type SeverityCounts,
 } from './status.js';
@@ -136,17 +143,28 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Per-severity FINDINGS breakdown for the list's findings column — one
-    // IN-query over the latest reviews found above, tallied in JS. A review
-    // with no findings stays absent here and reports all-zero counts.
+    // Per-severity FINDINGS breakdown + the hover preview for the list's
+    // findings column — one IN-query over the latest reviews found above,
+    // tallied and trimmed in JS. A review with no findings stays absent here
+    // and reports all-zero counts with an empty preview.
     const severitiesByReview = new Map<string, SeverityCounts>();
+    const previewsByReview = new Map<string, PrFindingPreview[]>();
     const latestReviewIds = [...latestReviewByPr.values()].map((rv) => rv.id);
     if (latestReviewIds.length > 0) {
       const findingRows = await container.db
-        .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+        .select({
+          reviewId: t.findings.reviewId,
+          severity: t.findings.severity,
+          category: t.findings.category,
+          title: t.findings.title,
+          file: t.findings.file,
+          startLine: t.findings.startLine,
+          confidence: t.findings.confidence,
+          rationale: t.findings.rationale,
+        })
         .from(t.findings)
         .where(inArray(t.findings.reviewId, latestReviewIds));
-      const byReview = new Map<string, { severity: string }[]>();
+      const byReview = new Map<string, typeof findingRows>();
       for (const row of findingRows) {
         const bucket = byReview.get(row.reviewId);
         if (bucket) bucket.push(row);
@@ -154,15 +172,16 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
       for (const [reviewId, rowsForReview] of byReview) {
         severitiesByReview.set(reviewId, rollupSeverities(rowsForReview));
+        previewsByReview.set(reviewId, toFindingPreviews(rowsForReview));
       }
     }
 
-    // Latest-run COST per PR for the list's cost column. Same shape as the
-    // score lookup above, and deliberately restricted to status='done': a
-    // failed/cancelled run produces neither a review nor a cost, so skipping
-    // them keeps SCORE and COST describing the SAME run. A null cost_usd on
-    // that run (model absent from the price book) stays null — "unknown", not 0.
-    const latestCostByPr = new Map<string, number | null>();
+    // Total COST per PR for the list's cost column: every COMPLETED run summed,
+    // because that is what reviewing this PR has cost so far. Restricted to
+    // status='done' — a failed/cancelled run produces neither a review nor a
+    // cost. A PR with no completed run reports null ("—", not $0.000), and so
+    // does one whose runs all lack a known model price: null means "unknown".
+    const costByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
@@ -175,9 +194,16 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           ),
         )
         .orderBy(desc(t.agentRuns.ranAt));
-      // Rows are newest-first → first seen per PR is the latest completed run.
       for (const run of runRows) {
-        if (run.prId && !latestCostByPr.has(run.prId)) latestCostByPr.set(run.prId, run.costUsd);
+        if (!run.prId) continue;
+        // An unpriced run still marks the PR as "has completed runs" (null),
+        // it just adds nothing to the total.
+        const running = costByPr.get(run.prId) ?? null;
+        if (run.costUsd == null) {
+          if (!costByPr.has(run.prId)) costByPr.set(run.prId, null);
+        } else {
+          costByPr.set(run.prId, (running ?? 0) + run.costUsd);
+        }
       }
     }
 
@@ -205,8 +231,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: latestCostByPr.get(r.id) ?? null,
+        cost_usd: costByPr.get(r.id) ?? null,
         findings: review ? toSeverityBreakdown(severitiesByReview.get(review.id)) : null,
+        findings_preview: review ? previewsByReview.get(review.id) ?? [] : null,
       };
     });
   });

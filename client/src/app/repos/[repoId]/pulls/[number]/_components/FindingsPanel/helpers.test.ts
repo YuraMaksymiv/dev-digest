@@ -40,17 +40,9 @@ describe("severityCounts", () => {
     ]);
   });
 
-  it("reports a severity with no findings as 0 rather than omitting it", () => {
-    expect(severityCounts([finding({ severity: "WARNING" })])).toEqual([
-      ["CRITICAL", 0],
-      ["WARNING", 1],
-      ["SUGGESTION", 0],
-    ]);
-    expect(severityCounts([])).toEqual([
-      ["CRITICAL", 0],
-      ["WARNING", 0],
-      ["SUGGESTION", 0],
-    ]);
+  it("omits severities this run didn't produce", () => {
+    expect(severityCounts([finding({ severity: "WARNING" })])).toEqual([["WARNING", 1]]);
+    expect(severityCounts([])).toEqual([]);
   });
 
   it("counts dismissed findings too — the panel still renders their cards", () => {

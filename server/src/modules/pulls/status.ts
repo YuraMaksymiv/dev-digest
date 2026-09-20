@@ -1,4 +1,4 @@
-import type { PrMeta, PrStatus } from '@devdigest/shared';
+import type { PrFindingPreview, PrMeta, PrStatus } from '@devdigest/shared';
 
 /**
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
@@ -41,6 +41,45 @@ export function toSeverityBreakdown(counts?: SeverityCounts): NonNullable<PrMeta
     WARNING: counts?.warning ?? 0,
     SUGGESTION: counts?.suggestion ?? 0,
   };
+}
+
+/** How many findings the list's hover preview carries; the rest read as "+N more". */
+export const PREVIEW_LIMIT = 4;
+
+/** Worst first — the preview shows the findings a reviewer would open the PR for. */
+const PREVIEW_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
+
+/**
+ * Trim a review's findings down to the list popover's read-only preview:
+ * worst severity first, then most confident, capped at PREVIEW_LIMIT.
+ */
+export function toFindingPreviews(
+  rows: {
+    severity: string;
+    category: string;
+    title: string;
+    file: string;
+    startLine: number;
+    confidence: number;
+    rationale: string;
+  }[],
+): PrFindingPreview[] {
+  return [...rows]
+    .sort(
+      (a, b) =>
+        (PREVIEW_RANK[a.severity] ?? 9) - (PREVIEW_RANK[b.severity] ?? 9) ||
+        b.confidence - a.confidence,
+    )
+    .slice(0, PREVIEW_LIMIT)
+    .map((r) => ({
+      severity: r.severity as PrFindingPreview['severity'],
+      category: r.category as PrFindingPreview['category'],
+      title: r.title,
+      file: r.file,
+      start_line: r.startLine,
+      confidence: r.confidence,
+      rationale: r.rationale,
+    }));
 }
 
 /**

@@ -1,10 +1,10 @@
 {
   "finding": {
     "accepted": "accepted",
-    "dismissed": "dismissed",
+    "dismissed": "rejected",
     "suggestedFix": "Suggested fix",
     "accept": "Accept",
-    "dismiss": "Dismiss",
+    "dismiss": "Reject",
     "learn": "Learn",
     "replyToAuthor": "Reply to author",
     "replyPlaceholder": "Reply to the author about this finding…",
@@ -98,6 +98,11 @@
       "status": "Status",
       "cost": "Cost",
       "updated": "Updated"
+    },
+    "findingsPreview": {
+      "title": "{count, plural, one {# FINDING IN THIS RUN} other {# FINDINGS IN THIS RUN}}",
+      "more": "+{count} more",
+      "cellLabel": "{count, plural, one {# finding in this run} other {# findings in this run}}"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",
