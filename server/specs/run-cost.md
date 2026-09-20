@@ -9,7 +9,7 @@ Surface the USD cost of agent review runs in three places in the studio:
 
 | # | Screen | Where | What |
 |---|---|---|---|
-| 1 | Pull Requests list | new `COST` column, between `STATUS` and `UPDATED` | cost of that PR's latest completed run |
+| 1 | Pull Requests list | new `COST` column, between `STATUS` and `UPDATED` | summed cost of that PR's completed runs |
 | 2 | PR detail → Agent runs → Timeline | right-hand meta column, under the time | `9,119 tok · $0.0013` |
 | 3 | PR detail → Agent runs → Review Runs accordion header | between the score badge and the timestamp | `$0.001` |
 | 4 | Run Trace drawer → Stats | new 4th tile, between `TOKENS` and `FINDINGS` | `COST` `$0.06` |
@@ -47,17 +47,25 @@ Note: `ci_runs.cost_usd` and the eval tables already store cost as
 | # | Decision | Rationale |
 |---|---|---|
 | D1 | **Persist** `agent_runs.cost_usd` at run completion; do **not** recompute on read | Model prices change; a recompute would silently rewrite history. Also preserves OpenRouter's real `usage.cost`, which no price table can reproduce. Makes the PR-list read a cheap column select. |
-| D2 | PR-list cost = **the latest completed run**, not a lifetime sum | Mirrors the `SCORE` column, which already shows the latest review. Score and cost on one row then describe the *same* run. |
+| D2 | PR-list cost = **the sum of every completed run** on the PR | The column answers "what has reviewing this PR cost so far", which is the number a budget conversation needs. *(Revised 2026-09-20; originally latest-run semantics, to mirror `SCORE`. `SCORE` still shows the latest review, so the two columns deliberately describe different spans.)* |
 | D3 | **No backfill.** `NULL` = unknown → render `—` | Honest. Applies equally to runs on models absent from the price book, and to failed/cancelled runs. |
 | D4 | Timeline row shows **tokens and cost** together, as designed | The two numbers explain each other; cost alone invites "why is this one expensive?". |
 | D5 | Cost reaches the Review Runs accordion as a **prop from the page**, not via a new `ReviewRecord` field | The PR detail page already holds both `usePrRuns()` (`RunSummary[]`, which will carry cost) and `usePrReviews()`; joining them in the page costs one `Map` and avoids a contract change plus a server-side join. |
 
 ### D2 — precise definition
 
-The most recent `agent_runs` row for the PR with `status = 'done'`, taking its
-`cost_usd` (which may itself be `NULL`). Failed and cancelled runs are skipped
-rather than treated as `$0`: they never produce a review either, so skipping
-them keeps `SCORE` and `COST` describing the same run.
+Every `agent_runs` row for the PR with `status = 'done'`, summing the non-`NULL`
+`cost_usd` values. Failed and cancelled runs are skipped rather than treated as
+`$0`: they never produce a review either, so they cost nothing to skip.
+
+Two nulls that mean different things, both rendered `—`:
+
+- the PR has **no** completed run → `null`
+- it has completed runs but **none** carries a price (model absent from the
+  price book) → `null`, i.e. "unknown", never `$0.000`
+
+A run with a known price alongside unpriced ones contributes its share; the
+total is then a lower bound, which is the honest reading of partial data.
 
 ## 4. Data model
 
@@ -106,7 +114,7 @@ export const RunStats = z.object({
 ```ts
 export const PrMeta = z.object({
   …
-  // Latest completed run's cost (list endpoint only; null until reviewed).
+  // Summed cost of the PR's completed runs (list endpoint only; null until reviewed).
   cost_usd: z.number().nullish(),
 });
 ```
@@ -131,10 +139,10 @@ export const PrMeta = z.object({
    (partial spend before a mid-run failure is not recoverable from the outcome —
    `NULL` is the honest value, per D3).
 5. **`modules/pulls/routes.ts` → `GET /repos/:id/pulls`**: alongside the existing
-   latest-review score lookup, add a latest-completed-run cost lookup using the
-   *same* shape — one `inArray` query ordered `desc(ranAt)`, filtered
-   `eq(status, 'done')`, first row seen per `prId` wins — then
-   `cost_usd: costByPr.get(r.id) ?? null` in the response map.
+   latest-review score lookup, add a completed-run cost lookup using the *same*
+   shape — one `inArray` query filtered `eq(status, 'done')`, accumulating
+   `cost_usd` per `prId` (an unpriced run keeps the PR at `null` without adding
+   to the total) — then `cost_usd: costByPr.get(r.id) ?? null` in the response map.
 
 No change to `reviewer-core/` — it already returns `costUsd`.
 
@@ -223,6 +231,7 @@ Fourth `<Stat>` between tokens and findings:
 | Free model (`z-ai/glm-4.7-flash`, price 0) | genuine `0` → `$0.00`, distinct from `—` |
 | PR never reviewed | no completed run → `—` in the list |
 | PR whose only runs failed | `—` in the list (D2 skips non-`done` runs) |
+| PR reviewed twice at $0.001 | `$0.002` in the list (D2 sums completed runs) |
 | Trace document written before this feature | `stats.cost_usd` absent → `—` in the drawer |
 | Mock LLM adapter (`adapters/mocks.ts`) | returns `costUsd: 0.001` → deterministic `$0.001` in tests |
 
@@ -231,7 +240,7 @@ Fourth `<Stat>` between tokens and findings:
 - Per-severity `FINDINGS` column on the PR list (also visible in the mockups —
   explicitly out of scope here; the list deliberately omits it today).
 - Budgets, caps, cost alerts, or a spend dashboard.
-- Lifetime per-PR or per-repo cost totals (D2 chose latest-run semantics).
+- Per-repo or per-workspace cost totals, and any budget/alerting on them (D2 covers only the per-PR total).
 - Backfilling historical runs (D3).
 - Embedding / indexing cost — this spec covers review runs only.
 
@@ -242,7 +251,7 @@ Fourth `<Stat>` between tokens and findings:
 | server | `test/contracts.test.ts` | `RunSummary` / `RunStats` / `PrMeta` parse with and without `cost_usd` |
 | server | `test/reviews.it.test.ts` (existing "agent_runs row populated" block, ~L206) | `run.costUsd` is `0.001` after a mock-LLM run; `trace.stats.cost_usd` likewise |
 | server | `test/reviews.it.test.ts` | a failed run persists `cost_usd = null` |
-| server | new/extended integration test | `GET /repos/:id/pulls` returns the latest **done** run's cost; a later failed run does not overwrite it with `null` |
+| server | new/extended integration test | `GET /repos/:id/pulls` sums the **done** runs' cost (two runs at `$0.001` → `$0.002`); a later failed run neither adds to it nor blanks it |
 | client | new `src/lib/format-cost.test.ts` | the four formatting bands + `null` → `—` + `0` → `$0.00` |
 | client | `RunHistory.test.tsx` | settled run renders `9,119 tok · $0.0013`; failed run renders neither |
 | client | `RunTraceDrawer.test.tsx` | Stats shows a `COST` tile; `—` when the trace has no `cost_usd` |
