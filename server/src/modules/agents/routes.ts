@@ -24,8 +24,8 @@ const VersionParams = z.object({
  *   PUT    /agents/:id              → update / toggle enabled (versions config)
  *   GET    /agents/:id/versions     → config history (newest first)
  *   GET    /agents/:id/versions/:version → one config snapshot
- *   GET    /agents/:id/skills       → linked skills (ordered)
- *   POST   /agents/:id/skills       → set/reorder linked skills OR link one
+ *   GET    /agents/:id/skills       → linked skills with their fields (ordered)
+ *   POST   /agents/:id/skills       → set/reorder/mute linked skills OR link one
  *   GET    /agents/:id/models       → dynamic model list for the agent's provider
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
@@ -56,16 +56,24 @@ const UpdateAgentBody = z.object({
   enabled: z.boolean().optional(),
 });
 
-/** Either set the whole ordered set (`skill_ids`) or link one (`skill_id`). */
+/**
+ * Either set the whole ordered set — `skills` (with the per-agent enabled flag)
+ * or the older `skill_ids` (all enabled) — or link one (`skill_id`).
+ */
 const SetSkillsBody = z
   .object({
+    skills: z
+      .array(z.object({ skill_id: z.string().uuid(), enabled: z.boolean().optional() }))
+      .optional(),
     skill_ids: z.array(z.string().uuid()).optional(),
     skill_id: z.string().uuid().optional(),
     order: z.number().int().optional(),
+    enabled: z.boolean().optional(),
   })
-  .refine((b) => b.skill_ids !== undefined || b.skill_id !== undefined, {
-    message: 'Provide skill_ids (set/reorder) or skill_id (link one)',
-  });
+  .refine(
+    (b) => b.skills !== undefined || b.skill_ids !== undefined || b.skill_id !== undefined,
+    { message: 'Provide skills / skill_ids (set + reorder) or skill_id (link one)' },
+  );
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -146,7 +154,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(app.container, req);
     const agent = await service.get(workspaceId, req.params.id);
     if (!agent) throw new NotFoundError('Agent not found');
-    return service.skillLinks(req.params.id);
+    return service.skillDetails(req.params.id);
   });
 
   app.post(
@@ -155,10 +163,21 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       const body = req.body;
+      // `skills` carries the per-agent enabled flag; `skill_ids` is the older
+      // form and means "all of these, enabled, in this order".
+      const orderedSet =
+        body.skills?.map((sk) => ({ skillId: sk.skill_id, enabled: sk.enabled })) ??
+        body.skill_ids?.map((skillId) => ({ skillId }));
       const links =
-        body.skill_ids !== undefined
-          ? await service.setSkills(workspaceId, req.params.id, body.skill_ids)
-          : await service.linkSkill(workspaceId, req.params.id, body.skill_id!, body.order);
+        orderedSet !== undefined
+          ? await service.setSkills(workspaceId, req.params.id, orderedSet)
+          : await service.linkSkill(
+              workspaceId,
+              req.params.id,
+              body.skill_id!,
+              body.order,
+              body.enabled,
+            );
       if (!links) throw new NotFoundError('Agent not found');
       return links;
     },

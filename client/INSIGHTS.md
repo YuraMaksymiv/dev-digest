@@ -10,6 +10,8 @@ skip it.
 
 ## What Doesn't Work
 
+- 2026-09-21 — Running `pnpm --dir client build` while `next dev` is up CORRUPTS the running dev server: the production build overwrites `.next/static`, so `main-app.js`, `app-pages-internals.js` and `layout.css` 404 and the page never hydrates. The symptom is silent and misleading — the route's server-rendered shell renders fine, but no React Query hook ever fires and lists come back empty with no error state. Fix: stop `next dev`, `rm -rf client/.next`, restart. Use `pnpm typecheck` (not `build`) to check types while a dev server is running.
+
 ## Codebase Patterns & Tool/Library Notes
 
 - 2026-09-17 — The repo has NO prettier dependency and NO prettier config: `npx prettier --write` pulls a fresh prettier with the default 80-col `printWidth` and reflows every untouched line in the file (house style is ~100 cols), turning a 5-line change into a 46-line diff. Format new code by hand to match the surrounding file.

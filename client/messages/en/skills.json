@@ -9,17 +9,20 @@
     "menu": {
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
-      "community": "Search community skills…"
+      "community": "Search community skills…",
+      "fromScratch": "Create from scratch"
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
-      "cta": "Import from file"
+      "body": "A skill is reusable review guidance — text an agent gets appended to its prompt. Write one and link it to an agent.",
+      "cta": "Create your first skill"
     },
     "selectPrompt": {
       "title": "Select a skill",
       "body": "Pick a skill on the left to preview its body."
-    }
+    },
+    "usedBy": "{count, plural, one {# agent} other {# agents}}",
+    "unused": "unused"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -97,5 +100,51 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "editor": {
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "versions": "Versions"
+    },
+    "enabled": "Enabled",
+    "enabledHint": "A disabled skill reaches no agent’s prompt, however it is linked.",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "The skill’s interface — write it as a directive, saying when the skill applies.",
+    "descriptionPlaceholder": "When the diff adds a .then() chain, require async/await instead.",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "bodyHint": "Appended to the prompt of every agent that links this skill, verbatim.",
+    "tokenHint": "~{count} tokens",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "savedToast": "Skill saved (v{version})",
+    "delete": "Delete",
+    "usedBy": "used by {count, plural, one {# agent} other {# agents}}",
+    "unused": "not linked to any agent",
+    "previewNotice": "This is the text the agent receives. It becomes instructions in the prompt — not data.",
+    "deleteConfirm": {
+      "title": "Delete this skill?",
+      "body": "Deleting “{name}” removes it and its version history. This cannot be undone.",
+      "usedByWarning": "It is linked to {count, plural, one {# agent} other {# agents}}, which will lose it:",
+      "confirm": "Delete skill",
+      "cancel": "Cancel"
+    }
+  },
+  "new": {
+    "title": "Create skill",
+    "subtitle": "A skill is reusable review guidance — text only, never executed.",
+    "defaultName": "new-skill",
+    "defaultBody": "## Rule\n\nDescribe when this applies and what to report.\n\nDo not report:\n- …",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "cancel": "Cancel"
+  },
+  "versions": {
+    "current": "current",
+    "empty": "No versions yet.",
+    "loadError": "Could not load the version history.",
+    "hint": "A content edit appends a version. Toggling Enabled does not."
   }
 }

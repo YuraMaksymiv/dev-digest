@@ -131,6 +131,22 @@ export const Skill = z.object({
 });
 export type Skill = z.infer<typeof Skill>;
 
+// A skill as the list rail shows it: the skill plus how many agents link it.
+// `used_by` is computed on read (a join + count), never denormalised onto the
+// row — nothing can then go stale.
+export const SkillSummary = Skill.extend({ used_by: z.number().int() });
+export type SkillSummary = z.infer<typeof SkillSummary>;
+
+// An immutable body snapshot, written whenever a skill's CONTENT changes
+// (name/description/type/body). Toggling `enabled` writes no version.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
 export const CommunitySkill = z.object({
   name: z.string(),
   repo: z.string(),
@@ -195,14 +211,33 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  // The PER-AGENT switch (`agent_skills.enabled`), not the skill's global one.
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+// A row of the agent's Skills tab: every skill field plus the two link columns,
+// so the tab renders name/type/description without an N+1 back to /skills.
+// `enabled` is the skill's GLOBAL switch; `link_enabled` is this agent's.
+// A skill reaches the prompt only when BOTH are true.
+export const AgentSkillDetail = Skill.extend({
+  order: z.number().int(),
+  link_enabled: z.boolean(),
+});
+export type AgentSkillDetail = z.infer<typeof AgentSkillDetail>;
 
 // The immutable config snapshot captured in `agent_versions` whenever an agent's
 // config changes (everything but `enabled`). Mirrors the shape written by the
 // agents repository — provider/model/prompt/output_schema/strategy/gate/repo_intel
-// plus the ordered skill ids linked at snapshot time. Used for reproducibility
-// (eval replays a past version) and for surfacing an agent's edit history.
+// plus the ordered skill ids that shaped the prompt at snapshot time. Used for
+// reproducibility (eval replays a past version) and for surfacing an agent's
+// edit history.
+//
+// `skills` semantics changed in L02 and the shape did NOT, so there is no
+// version marker and old rows still parse: before L02 it listed EVERY linked
+// skill; from L02 on it lists only the links whose per-agent switch was on —
+// i.e. the ones that actually reached the prompt. This comment is the only
+// migration artefact that exists for it.
 export const AgentVersionConfig = z.object({
   provider: Provider,
   model: z.string(),
