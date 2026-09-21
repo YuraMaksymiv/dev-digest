@@ -9,6 +9,7 @@ import { Modal, Button, FormField, TextInput, SelectInput } from "@devdigest/ui"
 import type { SkillType } from "@devdigest/shared";
 import { useCreateSkill } from "../../../../../../lib/hooks/skills";
 import { SKILL_TYPES } from "../../../../constants";
+import { s } from "./styles";
 
 export function NewSkillModal({ onClose }: { onClose: () => void }) {
   const t = useTranslations("skills");
@@ -43,19 +44,19 @@ export function NewSkillModal({ onClose }: { onClose: () => void }) {
       subtitle={t("new.subtitle")}
       onClose={onClose}
       footer={
-        <>
-          <Button kind="secondary" size="sm" onClick={onClose}>
+        <div style={s.footer}>
+          <Button kind="ghost" onClick={onClose}>
             {t("new.cancel")}
           </Button>
-          <Button kind="primary" size="sm" icon="Check" onClick={submit} disabled={create.isPending}>
+          <Button kind="primary" icon="Plus" onClick={submit} disabled={create.isPending}>
             {create.isPending ? t("new.creating") : t("new.create")}
           </Button>
-        </>
+        </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={s.body}>
         <FormField label={t("editor.name")} required>
-          <TextInput value={name} onChange={setName} mono placeholder={t("file.namePlaceholder")} />
+          <TextInput value={name} onChange={setName} mono placeholder={t("new.namePlaceholder")} />
         </FormField>
         <FormField label={t("editor.type")}>
           <SelectInput value={type} onChange={(v) => setType(v as SkillType)} options={typeOptions} />
@@ -64,7 +65,7 @@ export function NewSkillModal({ onClose }: { onClose: () => void }) {
           <TextInput
             value={description}
             onChange={setDescription}
-            placeholder={t("editor.descriptionPlaceholder")}
+            placeholder={t("new.descriptionPlaceholder")}
           />
         </FormField>
       </div>
