@@ -157,15 +157,74 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+// A house rule the extractor found already holding in a repo, with the code
+// that proves it. The model PROPOSES these; code picks the files it reads and
+// code verifies every citation, so a candidate that reaches the client has
+// had its snippet located in the cited file.
+
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'error_handling',
+  'async',
+  'typing',
+  'testing',
+  'imports',
+  'api',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+// Triage is three-state, not a boolean: a re-scan replaces only `pending`
+// candidates, so a rule the user rejected is never proposed again.
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
+  // One sentence on what a reviewer should flag. Editable; null when the
+  // model returned none.
+  rationale: z.string().nullish(),
   evidence_path: z.string(),
+  // 1-based and VERIFIED — the line the gate located the snippet at, which is
+  // not necessarily the line the model claimed.
+  evidence_line: z.number().int().nullish(),
+  // Sliced from the file on disk, never the model's transcription of it.
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  status: ConventionStatus,
+  created_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+// What one scan returns. The three counters are shown in the UI on purpose:
+// "3 kept of 12 proposed" reads as the evidence gate working, where a bare
+// list of 3 reads as the feature being broken.
+export const ConventionExtractResult = z.object({
+  candidates: z.array(ConventionCandidate),
+  proposed: z.number().int(),
+  dropped_ungrounded: z.number().int(),
+  dropped_duplicate: z.number().int(),
+  sampled_files: z.array(z.string()),
+  provider: z.string(),
+  model: z.string(),
+  cost_usd: z.number().nullish(),
+});
+export type ConventionExtractResult = z.infer<typeof ConventionExtractResult>;
+
+// The un-persisted skill assembled from the accepted candidates. The server
+// builds it, the user edits it, and it exists only once POST /skills is
+// called — the same preview-then-confirm flow as skill import.
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  evidence_files: z.array(z.string()),
+  convention_ids: z.array(z.string()),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

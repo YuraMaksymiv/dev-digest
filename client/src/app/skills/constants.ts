@@ -2,8 +2,10 @@ import type { SkillType } from "@devdigest/shared";
 
 /** Shared constants for the /skills routes (rail + editor). */
 
-/** The four skill types, in the order the editor's select offers them. */
-export const SKILL_TYPES: readonly SkillType[] = ["rubric", "convention", "security", "custom"];
+// The type list moved to `@/lib/skill-types` once the conventions modal became
+// a second consumer in another route; re-exported so these routes' imports
+// stay unchanged.
+export { SKILL_TYPES } from "@/lib/skill-types";
 
 /**
  * Type → accent colour. Tokens only (they switch with `data-theme`); `--info`

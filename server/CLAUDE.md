@@ -21,7 +21,8 @@ TypeScript 5.7.
 ## Map
 
 - `src/modules/*` — one folder per domain: `repos`, `pulls`, `agents`,
-  `reviews`, `repo-intel`, `settings`, `polling`, `workspace`.
+  `skills`, `conventions`, `reviews`, `repo-intel`, `settings`, `polling`,
+  `workspace`.
 - `src/adapters/*` — external systems: `github`, `git`, `llm`, `embedder`,
   `astgrep`, `depgraph`, `tokenizer`, `secrets`, `auth`.
 - `src/platform/*` — cross-cutting: `config`, `container` (DI), `grounding`,

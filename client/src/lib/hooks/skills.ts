@@ -9,6 +9,7 @@ import type {
   AgentSkillDetail,
   AgentSkillLink,
   Skill,
+  SkillSource,
   SkillSummary,
   SkillType,
   SkillVersion,
@@ -52,6 +53,8 @@ export interface CreateSkillInput {
   type: SkillType;
   body: string;
   enabled?: boolean;
+  /** Defaults to `manual` server-side; the conventions scan passes `extracted`. */
+  source?: SkillSource;
 }
 
 export function useCreateSkill() {
@@ -105,6 +108,30 @@ export function useAgentSkills(agentId: string | null | undefined) {
 export interface SetAgentSkillsInput {
   agentId: string;
   skills: Array<{ skill_id: string; enabled: boolean }>;
+}
+
+export interface LinkAgentSkillInput {
+  agentId: string;
+  skillId: string;
+}
+
+/**
+ * Link ONE skill to an agent, leaving its other links alone. Distinct from
+ * `useSetAgentSkills`, which replaces the whole set — calling that with a
+ * single skill would silently unlink everything else the agent uses.
+ */
+export function useLinkAgentSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skillId }: LinkAgentSkillInput) =>
+      api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skill_id: skillId }),
+    onSuccess: (_d, { agentId }) => {
+      qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
+      qc.invalidateQueries({ queryKey: ["agent", agentId] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["skills"] });
+    },
+  });
 }
 
 export function useSetAgentSkills() {

@@ -15,12 +15,76 @@
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "emptyFiltered": {
+      "title": "Nothing in this filter",
+      "body": "Switch to another filter, or re-scan the repo for fresh candidates."
+    },
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "scanSummary": "{proposed} proposed · {kept} kept · {ungrounded} dropped for unverifiable evidence · {duplicate} as duplicates",
+    "sampledFiles": "{count, plural, one {# file sampled} other {# files sampled}} · {model}",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "createSkill": "Create skill",
+    "filters": {
+      "all": "All",
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "rejected": "Rejected"
+    }
   },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
     "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "acceptAsSkill": "Accept as Skill",
+    "accept": "Accept",
+    "reject": "Reject",
+    "rejected": "Rejected",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "ruleLabel": "Rule",
+    "rationaleLabel": "What a reviewer should flag",
+    "rationalePlaceholder": "One sentence — what breaks when a change ignores this rule.",
+    "detectedIn": "Detected in",
+    "acceptAria": "Accept convention: {rule}",
+    "rejectAria": "Reject convention: {rule}",
+    "editAria": "Edit convention: {rule}",
+    "deleteAria": "Delete convention: {rule}",
+    "category": {
+      "naming": "naming",
+      "structure": "structure",
+      "error_handling": "error handling",
+      "async": "async",
+      "typing": "typing",
+      "testing": "testing",
+      "imports": "imports",
+      "api": "api"
+    }
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "mergedFrom": "Merged from {count, plural, one {# accepted convention} other {# accepted conventions}} in {repo}. Everything below is editable before you save.",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "enabled": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "body": "Skill body",
+    "unsaved": "unsaved",
+    "linkAgent": "Link to agent",
+    "linkAgentHint": "Optional — the skill is added to this agent's prompt right away.",
+    "noAgent": "Don't link yet",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "failed": "Could not create the skill.",
+    "buildFailed": "Could not build a draft. Accept at least one convention first.",
+    "types": {
+      "rubric": "rubric",
+      "convention": "convention",
+      "security": "security",
+      "custom": "custom"
+    }
   }
 }
