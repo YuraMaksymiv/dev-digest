@@ -41,6 +41,14 @@ export function FindingsTab({
   onDelete,
   onRunDone,
 }: FindingsTabProps) {
+  // A ReviewRecord carries no cost — it lives on the agent_runs row that produced
+  // it. Both datasets are already here, so join them by run_id rather than
+  // widening the review contract or adding a server-side join.
+  const costByRun = React.useMemo(
+    () => new Map((prRuns ?? []).map((r) => [r.run_id, r.cost_usd])),
+    [prRuns],
+  );
+
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
@@ -162,6 +170,7 @@ export function FindingsTab({
             defaultOpen={i === 0}
             repoFullName={repoFullName}
             headSha={headSha}
+            costUsd={review.run_id ? costByRun.get(review.run_id) ?? null : null}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
           />

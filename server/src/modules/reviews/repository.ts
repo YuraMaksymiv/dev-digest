@@ -161,6 +161,8 @@ export class ReviewRepository {
       score?: number | null;
       /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
       blockers?: number | null;
+      /** Cost in USD; null when unknown (no price for the model) or the run failed. */
+      costUsd?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
     },

@@ -64,6 +64,12 @@ export const RunStats = z.object({
   tokens_out: z.number().int(),
   findings: z.number().int(),
   grounding: z.string(),
+  /**
+   * Run cost in USD. NULLISH, not nullable: traces persisted before this field
+   * existed have no key, and `getRunTrace` casts instead of parsing — a required
+   * field would type-lie about every one of them.
+   */
+  cost_usd: z.number().nullish(),
 });
 export type RunStats = z.infer<typeof RunStats>;
 
@@ -102,6 +108,8 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** Run cost in USD; null when the model has no known price, or the run failed. */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),
