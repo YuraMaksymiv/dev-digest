@@ -50,6 +50,7 @@ export function ConventionCard({
   };
 
   const save = () => {
+    if (busy) return;
     onSave({ rule: rule.trim() || c.rule, rationale: rationale.trim() });
     setEditing(false);
   };
@@ -140,13 +141,13 @@ export function ConventionCard({
           <IconBtn
             icon="Edit"
             label={t("card.editAria", { rule: c.rule })}
-            onClick={startEdit}
+            onClick={() => !busy && startEdit()}
           />
           <IconBtn
             icon="Trash"
             label={t("card.deleteAria", { rule: c.rule })}
             danger
-            onClick={onDelete}
+            onClick={() => !busy && onDelete()}
           />
         </div>
       )}

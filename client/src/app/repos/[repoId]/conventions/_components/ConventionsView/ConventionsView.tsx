@@ -44,6 +44,22 @@ export function ConventionsView() {
   const buildDraft = useConventionSkillDraft();
   const [draft, setDraft] = React.useState<ConventionSkillDraft | null>(null);
 
+  // Two controls start a scan — the header button and the empty state's CTA —
+  // and both are visible at once on a first visit. Each disables itself once
+  // `isPending` renders, but a second click landing before that commit would
+  // bill a second scan, so the guard is a ref read at CLICK time rather than
+  // the pending flag captured at render time.
+  const scanning = React.useRef(false);
+  const runScan = () => {
+    if (scanning.current) return;
+    scanning.current = true;
+    extract.mutate(repoId, {
+      onSettled: () => {
+        scanning.current = false;
+      },
+    });
+  };
+
   // The filter belongs in the URL: a maintainer working through the pending
   // pile should be able to reload, or share the link, without losing it.
   const filter = (search.get("status") ?? DEFAULT_FILTER) as StatusFilter;
@@ -90,23 +106,33 @@ export function ConventionsView() {
                 })}
               </p>
             )}
+            {scan && (
+              <p style={s.scanSummary}>
+                {t("page.sampledFiles", {
+                  count: scan.sampled_files.length,
+                  model: scan.model,
+                })}
+              </p>
+            )}
           </div>
           <Button
             kind="secondary"
             icon="RefreshCw"
             loading={extract.isPending}
-            onClick={() => extract.mutate(repoId)}
+            onClick={runScan}
           >
             {extract.isPending ? t("page.scanning") : t("page.rescan")}
           </Button>
         </div>
+
+        {buildDraft.isError && <div style={s.error}>{t("modal.buildFailed")}</div>}
 
         {extract.isError && (
           <div style={s.error}>
             <ErrorState
               title={t("page.extractionFailed")}
               body={extract.error instanceof ApiError ? extract.error.message : undefined}
-              onRetry={() => extract.mutate(repoId)}
+              onRetry={runScan}
             />
           </div>
         )}
@@ -153,7 +179,7 @@ export function ConventionsView() {
             body={t("page.empty.body")}
             cta={t("page.empty.cta")}
             ctaLoading={extract.isPending}
-            onCta={() => extract.mutate(repoId)}
+            onCta={runScan}
           />
         ) : shown.length === 0 ? (
           <EmptyState

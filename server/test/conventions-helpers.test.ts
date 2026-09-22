@@ -75,6 +75,10 @@ describe('resolveSampledPath', () => {
     expect(resolveSampledPath('api/users.ts', sampled)).toBe('src/api/users.ts');
   });
 
+  it('accepts a path the model LENGTHENED past the sampled one', () => {
+    expect(resolveSampledPath('repo/src/api/users.ts', sampled)).toBe('src/api/users.ts');
+  });
+
   it('refuses an AMBIGUOUS suffix rather than guessing a file', () => {
     expect(resolveSampledPath('index.ts', ['src/a/index.ts', 'src/b/index.ts'])).toBeNull();
   });
@@ -108,6 +112,17 @@ describe('locateSnippet', () => {
 
   it('rejects a snippet too trivial to identify anything', () => {
     expect(locateSnippet(USERS, '}', 6)).toBeNull();
+  });
+
+  it('does NOT pad the snippet with lines the model never quoted', () => {
+    // The two quoted lines are separated by a blank line in the file, so the
+    // exact-width window misses and the widened one matches — the returned
+    // snippet must still stop at the quote, not run on into line 4.
+    const content = 'const x = 1;\n\nconst y = 2;\nconst unrelated = 3;\n';
+    const found = locateSnippet(content, 'const x = 1;\nconst y = 2;', 1);
+    expect(found?.line).toBe(1);
+    expect(found?.snippet).toBe('const x = 1;\n\nconst y = 2;');
+    expect(found?.snippet).not.toContain('unrelated');
   });
 
   it('rejects a snippet that is not in the file', () => {

@@ -82,6 +82,17 @@ describe("ConventionCard", () => {
     });
   });
 
+  it("falls back to the original rule rather than saving an empty one", () => {
+    const h = setup();
+    fireEvent.click(screen.getByRole("button", { name: `Edit convention: ${CANDIDATE.rule}` }));
+    fireEvent.change(screen.getAllByRole("textbox")[0]!, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(h.onSave).toHaveBeenCalledWith({
+      rule: CANDIDATE.rule,
+      rationale: CANDIDATE.rationale,
+    });
+  });
+
   it("discards an edit on cancel", () => {
     const h = setup();
     fireEvent.click(screen.getByRole("button", { name: `Edit convention: ${CANDIDATE.rule}` }));
@@ -94,5 +105,32 @@ describe("ConventionCard", () => {
   it("labels an already-accepted candidate as accepted", () => {
     setup({ status: "accepted" });
     expect(screen.getByText("Accepted")).toBeInTheDocument();
+  });
+});
+
+describe("ConventionCard — in-flight guards", () => {
+  function setupBusy(over: Partial<ConventionCandidate> = {}) {
+    const handlers = {
+      onAccept: vi.fn(),
+      onReject: vi.fn(),
+      onSave: vi.fn(),
+      onDelete: vi.fn(),
+    };
+    renderWithIntl(
+      <ConventionCard candidate={{ ...CANDIDATE, ...over }} {...handlers} busy />,
+    );
+    return handlers;
+  }
+
+  it("ignores delete while another write for this card is still in flight", () => {
+    const h = setupBusy();
+    fireEvent.click(screen.getByRole("button", { name: `Delete convention: ${CANDIDATE.rule}` }));
+    expect(h.onDelete).not.toHaveBeenCalled();
+  });
+
+  it("ignores edit while a write is in flight, so the form cannot open over stale data", () => {
+    setupBusy();
+    fireEvent.click(screen.getByRole("button", { name: `Edit convention: ${CANDIDATE.rule}` }));
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 });

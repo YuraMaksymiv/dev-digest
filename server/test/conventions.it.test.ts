@@ -249,6 +249,44 @@ d('conventions extractor', () => {
     expect(skills).toHaveLength(0);
   });
 
+  it('answers 404 (not 403) for a convention in another workspace', async () => {
+    const app = await makeApp([GROUNDED]);
+    const [other] = await pg.handle.db
+      .insert(t.workspaces)
+      .values({ name: `other-${Math.random().toString(36).slice(2)}` })
+      .returning();
+    const [foreign] = await pg.handle.db
+      .insert(t.conventions)
+      .values({
+        workspaceId: other!.id,
+        repoId: null,
+        category: 'async',
+        rule: 'Not ours.',
+        evidencePath: 'src/a.ts',
+        evidenceLine: 1,
+        evidenceSnippet: 'const a = 1;',
+        confidence: 0.9,
+      })
+      .returning();
+
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `/conventions/${foreign!.id}`,
+      payload: { status: 'accepted' },
+    });
+    expect(patch.statusCode).toBe(404);
+
+    const del = await app.inject({ method: 'DELETE', url: `/conventions/${foreign!.id}` });
+    expect(del.statusCode).toBe(404);
+
+    // …and the foreign row is untouched by either attempt.
+    const [after] = await pg.handle.db
+      .select()
+      .from(t.conventions)
+      .where(eq(t.conventions.id, foreign!.id));
+    expect(after!.status).toBe('pending');
+  });
+
   it('refuses a draft when nothing has been accepted', async () => {
     const app = await makeApp([GROUNDED]);
     await extract(app);

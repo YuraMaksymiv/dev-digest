@@ -153,7 +153,15 @@ export function locateSnippet(
     const line = hits.reduce((best, h) =>
       Math.abs(h - claimedLine) < Math.abs(best - claimedLine) ? h : best,
     );
-    return { line, snippet: dedent(fileLines.slice(line - 1, line - 1 + window)) };
+    // The widened window can span more lines than the quote needed. Shrink it
+    // back to the shortest slice that still contains the match, so the stored
+    // evidence is what the model actually cited and not the lines that happened
+    // to sit under it — an over-long snippet presents unquoted code as proven.
+    let end = line - 1 + window;
+    while (end > line && normalize(fileLines.slice(line - 1, end - 1).join(' ')).includes(needle)) {
+      end--;
+    }
+    return { line, snippet: dedent(fileLines.slice(line - 1, end)) };
   }
   return null;
 }
