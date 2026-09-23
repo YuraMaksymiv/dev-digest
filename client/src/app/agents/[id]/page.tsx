@@ -84,6 +84,7 @@ export default function AgentEditorPage() {
               <AgentCard
                 key={a.id}
                 ag={a}
+                skillCount={a.skills_count}
                 active={a.id === id}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}

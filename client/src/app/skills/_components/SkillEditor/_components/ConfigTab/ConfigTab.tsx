@@ -5,7 +5,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Badge, Button, FormField, SelectInput, TextInput, Textarea, Toggle } from "@devdigest/ui";
+import { Badge, Button, FormField, Icon, SelectInput, TextInput, Textarea, Toggle } from "@devdigest/ui";
 import type { Skill, SkillType } from "@devdigest/shared";
 import {
   useDeleteSkill,
@@ -102,14 +102,25 @@ export function ConfigTab({ skill }: { skill: Skill }) {
         />
       </FormField>
 
-      <FormField
-        label={t("editor.body")}
-        hint={t("editor.bodyHint")}
-        right={
-          <span style={s.tokenHint}>{t("editor.tokenHint", { count: approxTokens(body) })}</span>
-        }
-      >
-        <Textarea value={body} onChange={setBody} rows={18} mono />
+      <FormField label={t("editor.body")} hint={t("editor.bodyHint")} required>
+        {/* The body is the whole skill, so it gets a file-like frame: what it
+            would be called on disk, whether it differs from what is saved, and
+            how much prompt budget it costs. */}
+        <div style={s.editorPane}>
+          <div style={s.editorHead}>
+            <Icon.FileText size={14} style={s.editorIcon} />
+            <span className="mono" style={s.editorFile}>
+              {name || skill.name}.md
+            </span>
+            {body !== skill.body && (
+              <Badge color="var(--text-muted)">{t("editor.unsaved")}</Badge>
+            )}
+            <span className="mono" style={s.tokenHint}>
+              {t("editor.tokenHint", { count: approxTokens(body) })}
+            </span>
+          </div>
+          <Textarea value={body} onChange={setBody} rows={18} mono />
+        </div>
       </FormField>
 
       <div style={s.actions}>

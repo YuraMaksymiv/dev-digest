@@ -7,6 +7,7 @@ import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/share
 import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { useToast } from "../../../../../../../lib/toast";
 import { toModelOptions } from "../../../../../../../lib/model-label";
+import { approxTokens } from "@/lib/token-estimate";
 import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
 import { s } from "./styles";
 
@@ -38,12 +39,26 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     setEnabled(agent.enabled);
   }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * A model id belongs to exactly ONE provider, so switching provider must drop
+   * the current model — keeping it offers (and saves) an impossible pair like
+   * `openai` + `deepseek/deepseek-v4-flash`. Switching back to the agent's own
+   * provider restores what it is persisted with rather than clearing the field.
+   */
+  const onProvider = (next: Provider) => {
+    setProvider(next);
+    setModel(next === agent.provider ? agent.model : "");
+  };
+
   const { data: models } = useProviderModels(provider);
   // Show the price (USD per 1M in/out tokens) in the label when the provider
   // exposes it (OpenRouter) so a cheap model is easy to pick; value stays the id.
   const modelOptions = toModelOptions(models);
   const hasModel = modelOptions.some((o) => (typeof o === "string" ? o : o.value) === model);
-  if (!hasModel) modelOptions.unshift(model);
+  // Re-inject a model the provider's list does not carry ONLY when it is the one
+  // this agent is actually persisted with (a pinned or retired id). After a
+  // provider switch there is nothing legitimate to re-inject.
+  if (!hasModel && model && provider === agent.provider) modelOptions.unshift(model);
   // Empty list after load = provider key missing/invalid (listModels failed) —
   // guide the user instead of showing a silent one-item dropdown.
   const noModels = models !== undefined && models.length === 0;
@@ -93,7 +108,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
       <FormField label={t("config.provider")}>
         <SelectInput
           value={provider}
-          onChange={(v) => setProvider(v as Provider)}
+          onChange={(v) => onProvider(v as Provider)}
           options={[...PROVIDER_OPTIONS]}
         />
       </FormField>
@@ -127,16 +142,27 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
         </label>
       </FormField>
-      <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
+      <FormField
+        label={t("config.systemPrompt")}
+        hint={t("config.systemPromptHint")}
+        right={
+          <span className="mono" style={s.tokenHint}>
+            {t("config.promptTokens", { count: approxTokens(systemPrompt) })}
+          </span>
+        }
+      >
         <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />
       </FormField>
       <FormField label={t("config.outputSchema")}>
         <SelectInput value={OUTPUT_SCHEMA_VALUE} options={[OUTPUT_SCHEMA_VALUE]} />
       </FormField>
       <div style={s.actions}>
-        <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending}>
+        {/* No model means the provider was just switched and nothing picked yet —
+            saving that would persist an agent that cannot run. */}
+        <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending || !model}>
           {update.isPending ? t("config.saving") : t("config.save")}
         </Button>
+        {!model && <span style={s.savedNote}>{t("config.pickModel")}</span>}
         {update.isSuccess && (
           <span style={s.savedNote}>{t("config.saved", { version: update.data?.version })}</span>
         )}

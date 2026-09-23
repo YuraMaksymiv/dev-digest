@@ -1,14 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type {
-  Agent,
-  AgentSkillDetail,
-  AgentSkillLink,
-  AgentVersion,
-  CiFailOn,
-  ModelInfo,
-  Provider,
-  ReviewStrategy,
-} from '@devdigest/shared';
+import type { Agent, AgentSkillDetail, AgentSkillLink, AgentSummary, AgentVersion, CiFailOn, ModelInfo, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentsRepository, type SkillLinkInput } from './repository.js';
 import { toAgentDto, toAgentSkillDetail, toAgentVersionDto } from './helpers.js';
 import { ValidationError } from '../../platform/errors.js';
@@ -57,9 +48,9 @@ export class AgentsService {
     this.repo = new AgentsRepository(container.db);
   }
 
-  async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+  async list(workspaceId: string): Promise<AgentSummary[]> {
+    const rows = await this.repo.listWithSkillCount(workspaceId);
+    return rows.map((r) => ({ ...toAgentDto(r.agent), skills_count: r.skillsCount }));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {

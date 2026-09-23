@@ -20,6 +20,25 @@ export const s = {
   } satisfies CSSProperties,
   enabledText: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
   enabledHint: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
-  tokenHint: { fontSize: 11, color: "var(--text-muted)" } satisfies CSSProperties,
+  tokenHint: {
+    marginLeft: "auto",
+    fontSize: 11,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  editorPane: {
+    border: "1px solid var(--border-strong)",
+    borderRadius: 8,
+    overflow: "hidden",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  editorHead: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  editorIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  editorFile: { fontSize: 12.5, fontWeight: 600 } satisfies CSSProperties,
   actions: { display: "flex", alignItems: "center", gap: 10, marginTop: 10 } satisfies CSSProperties,
 } as const;

@@ -88,7 +88,9 @@
       "extracted": "Extracted",
       "community": "Community",
       "imported_url": "Imported"
-    }
+    },
+    "toggleAria": "Enable or disable skill: {name}",
+    "deleteAria": "Delete skill: {name}"
   },
   "preview": {
     "untrustedBadge": "untrusted source",
@@ -130,7 +132,8 @@
       "usedByWarning": "It is linked to {count, plural, one {# agent} other {# agents}}, which will lose it:",
       "confirm": "Delete skill",
       "cancel": "Cancel"
-    }
+    },
+    "unsaved": "unsaved"
   },
   "new": {
     "title": "Create skill",
@@ -147,6 +150,40 @@
     "current": "current",
     "empty": "No versions yet.",
     "loadError": "Could not load the version history.",
-    "hint": "A content edit appends a version. Toggling Enabled does not."
+    "hint": "A content edit appends a version. Toggling Enabled does not.",
+    "diff": "Diff",
+    "restore": "Restore",
+    "diffAria": "Show what changed in version {version}",
+    "restoreAria": "Restore the body of version {version}",
+    "identical": "No change to the body in this save.",
+    "unchangedLines": "{count, plural, one {# unchanged line} other {# unchanged lines}}",
+    "restoredToast": "Restored v{from} as v{version}"
+  },
+  "import": {
+    "titleUrl": "Import skill from URL",
+    "titleFile": "Import skill from file",
+    "subtitleUrl": "Fetch a markdown skill from a public URL. Nothing is saved until you confirm.",
+    "subtitleFile": "Read a markdown file from this machine. Nothing is saved until you confirm.",
+    "urlLabel": "URL",
+    "urlPlaceholder": "https://example.com/skills/no-then-chains.md",
+    "urlHint": "Only public http/https addresses. Private and loopback hosts are refused.",
+    "fetch": "Fetch",
+    "fetching": "Fetching…",
+    "fileLabel": "Markdown file",
+    "fileHint": "A .md, .markdown or .txt file, up to 256 KB.",
+    "choose": "Choose a file…",
+    "fetchFailed": "Could not fetch that URL.",
+    "fileTooLarge": "That file is too large to import.",
+    "fileEmpty": "That file is empty.",
+    "fetchedFrom": "Fetched from {url}",
+    "readFrom": "Read from {name}",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "body": "Skill body",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createFailed": "Could not create the skill."
   }
 }

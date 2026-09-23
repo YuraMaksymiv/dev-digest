@@ -6,6 +6,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { SkillsService } from './service.js';
+import { fetchSkillBody, skillNameFromUrl } from './import.js';
 
 /** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
 const VersionParams = z.object({
@@ -24,8 +25,11 @@ const VersionParams = z.object({
  *   GET    /skills/:id/versions/:version → one body snapshot
  *   GET    /skills/:id/agents            → agents linking this skill
  *
- * A skill is text and configuration only — there is no import, execution or
- * fetch surface here by design.
+ *   POST   /skills/import               → fetch a URL into a skill DRAFT
+ *
+ * A skill is text and configuration only: it is never executed. The one
+ * outbound call is `/skills/import`, which fetches a body the user asked for
+ * and persists NOTHING — `POST /skills` is still what creates the skill.
  */
 
 const CreateSkillBody = z.object({
@@ -36,6 +40,8 @@ const CreateSkillBody = z.object({
   source: SkillSource.optional(),
   enabled: z.boolean().optional(),
 });
+
+const ImportSkillBody = z.object({ url: z.string().min(1) });
 
 const UpdateSkillBody = z.object({
   name: z.string().min(1).optional(),
@@ -74,6 +80,25 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     });
     reply.status(201);
     return skill;
+  });
+
+  /**
+   * Fetch a URL into an un-persisted draft. It is a POST because it performs an
+   * outbound request; it writes nothing, so the user still confirms in the
+   * modal before `POST /skills` creates anything.
+   */
+  app.post('/skills/import', { schema: { body: ImportSkillBody } }, async (req) => {
+    await getContext(app.container, req);
+    const { text, finalUrl } = await fetchSkillBody(req.body.url);
+    const name = skillNameFromUrl(finalUrl);
+    return {
+      name,
+      description: '',
+      type: 'custom' as const,
+      body: text,
+      source: 'imported_url' as const,
+      source_url: finalUrl,
+    };
   });
 
   app.put('/skills/:id', { schema: { params: IdParams, body: UpdateSkillBody } }, async (req) => {

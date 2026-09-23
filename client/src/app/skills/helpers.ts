@@ -11,14 +11,10 @@ export function filterSkills(skills: SkillSummary[], query: string): SkillSummar
   );
 }
 
-/**
- * Rough token count for the body-size hint. The client has no tokenizer, so
- * this is the same chars/4 approximation the server falls back to — which is
- * why every label that shows it is prefixed with `~`.
- */
-export function approxTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
+// Moved to `@/lib/token-estimate` once the agent editor's system prompt became
+// a second consumer in another route; re-exported so these files' imports and
+// their tests stay unchanged.
+export { approxTokens } from "@/lib/token-estimate";
 
 /** First non-blank line of a body, for the version list's one-line summary. */
 export function firstLine(body: string, max = 80): string {

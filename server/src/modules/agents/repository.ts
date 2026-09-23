@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -70,6 +70,22 @@ export class AgentsRepository {
       .from(t.agents)
       .where(eq(t.agents.workspaceId, workspaceId))
       .orderBy(asc(t.agents.createdAt));
+  }
+
+  /**
+   * All agents with how many skills each links, oldest first. One left-join +
+   * group-by rather than a count query per card — mirrors
+   * `SkillsRepository.listWithUsage` in the other direction.
+   */
+  async listWithSkillCount(workspaceId: string): Promise<{ agent: AgentRow; skillsCount: number }[]> {
+    const rows = await this.db
+      .select({ agent: t.agents, skillsCount: count(t.agentSkills.skillId) })
+      .from(t.agents)
+      .leftJoin(t.agentSkills, eq(t.agentSkills.agentId, t.agents.id))
+      .where(eq(t.agents.workspaceId, workspaceId))
+      .groupBy(t.agents.id)
+      .orderBy(asc(t.agents.createdAt));
+    return rows.map((r) => ({ agent: r.agent, skillsCount: r.skillsCount }));
   }
 
   async listEnabled(workspaceId: string): Promise<AgentRow[]> {

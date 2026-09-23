@@ -9,6 +9,7 @@ import type {
   AgentSkillDetail,
   AgentSkillLink,
   Skill,
+  SkillImportDraft,
   SkillSource,
   SkillSummary,
   SkillType,
@@ -62,6 +63,17 @@ export function useCreateSkill() {
   return useMutation({
     mutationFn: (input: CreateSkillInput) => api.post<Skill>("/skills", input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+  });
+}
+
+/**
+ * Fetch a URL into a skill draft. Server-side on purpose: the browser cannot
+ * fetch an arbitrary origin (CORS), and the server vets the address before it
+ * calls out. Persists nothing — `useCreateSkill` still does that.
+ */
+export function useImportSkillUrl() {
+  return useMutation({
+    mutationFn: (url: string) => api.post<SkillImportDraft>("/skills/import", { url }),
   });
 }
 

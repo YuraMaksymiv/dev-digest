@@ -147,6 +147,19 @@ export const SkillVersion = z.object({
 });
 export type SkillVersion = z.infer<typeof SkillVersion>;
 
+// A skill fetched from a URL but NOT yet persisted. Same preview-then-confirm
+// shape as the conventions draft: the server fetches and proposes, the user
+// edits, and `POST /skills` is what makes it exist.
+export const SkillImportDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source: SkillSource,
+  source_url: z.string(),
+});
+export type SkillImportDraft = z.infer<typeof SkillImportDraft>;
+
 export const CommunitySkill = z.object({
   name: z.string(),
   repo: z.string(),
@@ -265,6 +278,12 @@ export const Agent = z.object({
   repo_intel: z.boolean().default(true),
 });
 export type Agent = z.infer<typeof Agent>;
+
+// An agent as the list renders it: the agent plus how many skills it links.
+// `skills_count` is computed on read (a join + count), never denormalised onto
+// the row — the same shape `SkillSummary.used_by` uses in the other direction.
+export const AgentSummary = Agent.extend({ skills_count: z.number().int() });
+export type AgentSummary = z.infer<typeof AgentSummary>;
 
 export const AgentSkillLink = z.object({
   agent_id: z.string(),

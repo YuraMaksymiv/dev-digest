@@ -1,7 +1,7 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count, plural, one {# skill} other {# skills}}"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -85,7 +85,9 @@
     "save": "Save agent",
     "saving": "Saving…",
     "saved": "Saved (v{version})",
-    "savedToast": "Agent saved (v{version})"
+    "savedToast": "Agent saved (v{version})",
+    "pickModel": "Pick a model for this provider before saving.",
+    "promptTokens": "~{count} tokens"
   },
   "skills": {
     "title": "Skills",
