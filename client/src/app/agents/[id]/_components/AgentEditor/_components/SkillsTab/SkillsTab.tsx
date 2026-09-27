@@ -104,10 +104,14 @@ export function SkillsTab({ agent }: { agent: Agent }) {
       {visible.map((row) => {
         const index = rows.findIndex((r) => r.id === row.id);
         const struck = !row.globallyEnabled;
+        // A globally-disabled row is inert (its checkbox is disabled too), so
+        // dragging it is disabled the same way — a per-agent-off row is still
+        // reorderable, since unchecking it here is meant to be reversible.
+        const canDrag = reorderable && !struck;
         return (
           <div
             key={row.id}
-            draggable={reorderable}
+            draggable={canDrag}
             onDragStart={() => setDragIndex(index)}
             onDragOver={(e) => {
               // Without preventDefault the drop event never fires.
@@ -126,7 +130,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
             }}
             style={s.row(row.enabled && row.globallyEnabled, dragOver === index)}
           >
-            {reorderable && (
+            {canDrag && (
               <span style={s.handle} aria-hidden>
                 <Icon.Menu size={14} />
               </span>
@@ -142,7 +146,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
             </span>
             {struck && <span style={s.globalHint}>{t("skills.disabledGlobally")}</span>}
             <span style={s.spacer} />
-            {reorderable && (
+            {canDrag && (
               <span style={s.arrows}>
                 <IconBtn
                   icon="ArrowUp"

@@ -166,7 +166,7 @@ await save(u);
     description:
       'When the diff calls an API, verify the symbol exists in the repo or its dependencies before trusting it.',
     type: 'security',
-    agents: ['Security Reviewer'],
+    agents: ['Security Reviewer', 'API Contract Reviewer'],
     body: `## Phantom APIs
 
 A call to something that does not exist fails at run time, in the path nobody
@@ -198,7 +198,7 @@ does not.`,
     description:
       'When the diff changes conditional logic, check that every branch of it is exercised by a test.',
     type: 'custom',
-    agents: ['Security Reviewer'],
+    agents: ['Security Reviewer', 'Test Quality Reviewer'],
     body: `## Branch coverage of changed logic
 
 For every conditional the diff adds or changes — \`if\`/\`else\`, ternary,
