@@ -60,7 +60,13 @@ d('skills reach the assembled prompt', () => {
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
-        llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }) },
+        llm: {
+          openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }),
+          // Intent derivation (review_intent's default is openrouter) — no
+          // fixture, so it throws and `intent` stays undefined; the assembled
+          // prompt is unaffected, matching this suite's byte-identical assertion.
+          openrouter: new MockLLMProvider('openrouter'),
+        },
       },
     });
   }

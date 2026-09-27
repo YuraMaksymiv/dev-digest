@@ -119,6 +119,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         git: new MockGitClient({ diff: DIFF }),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
+          // Intent derivation (review_intent's default is openrouter) — no
+          // fixture, so it throws and the run's `intent` stays undefined,
+          // matching pre-intent behavior for these assertions.
+          openrouter: new MockLLMProvider('openrouter'),
         },
       },
     });

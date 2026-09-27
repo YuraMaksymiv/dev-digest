@@ -6,10 +6,41 @@ import { z } from 'zod';
  */
 
 // ---- Intent ----
+export const IntentCategory = z.enum([
+  'feat',
+  'fix',
+  'refactor',
+  'perf',
+  'chore',
+  'docs',
+  'test',
+  'style',
+  'build',
+  'ci',
+  'security',
+]);
+export type IntentCategory = z.infer<typeof IntentCategory>;
+
 export const Intent = z.object({
-  intent: z.string(),
-  in_scope: z.array(z.string()),
-  out_of_scope: z.array(z.string()),
+  intent: z
+    .string()
+    .describe('One or two sentences: what this PR is trying to accomplish and why.'),
+  in_scope: z
+    .array(z.string())
+    .describe('Concrete changes/areas this PR is expected to touch, given its stated intent.'),
+  out_of_scope: z
+    .array(z.string())
+    .describe(
+      'Concrete changes/areas this PR explicitly should NOT touch — a reviewer should flag scope creep against this list.',
+    ),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe(
+      '0-1. How much explicit, unambiguous context (description/ticket/spec) grounded this inference, vs. guessing from indirect signals (branch name, commits, file paths). Low context ⇒ low confidence, even when the inferred intent itself seems clear.',
+    ),
+  category: IntentCategory.describe('The single best-fitting change category.'),
 });
 export type Intent = z.infer<typeof Intent>;
 

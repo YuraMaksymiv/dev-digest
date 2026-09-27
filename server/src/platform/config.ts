@@ -36,6 +36,11 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // Adds a per-section content hash (one-way, non-reversible — never the
+  // content itself) to the prompt-assembly log line, for local debugging.
+  // Gated to non-production in loadConfig() below regardless of this value,
+  // so it can't be flipped on for a deployed environment by mistake.
+  PROMPT_LOG_VERBOSE: z.string().optional(),
 });
 
 export type AppConfig = {
@@ -59,6 +64,14 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Adds a one-way content hash per section to the prompt-assembly log line
+   * (never the section text itself) — for local debugging only. Requires
+   * BOTH `PROMPT_LOG_VERBOSE=true` AND a non-production NODE_ENV; the latter
+   * can't be overridden by the env var, so this is always false in prod even
+   * if the flag is set by mistake.
+   */
+  promptLogVerbose: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -77,5 +90,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptLogVerbose: parsed.PROMPT_LOG_VERBOSE === 'true' && parsed.NODE_ENV !== 'production',
   };
 }

@@ -24,7 +24,12 @@ skip it.
 
 ## Decisions
 
+- 2026-09-23 — `agent_runs` is not exclusively "one row per review agent run": L03's intent classifier also writes a row there (`createAgentRun({ agentId: null, ... })`) purely for cost/token observability, reusing the same table rather than adding a new one. Every existing reader that treats `agent_runs` as "the PR's agent runs" — `listRunsForPull`, `activeRunsForPull` (`modules/reviews/repository/run.repo.ts`), and the PR-list cost rollup (`modules/pulls/routes.ts`) — had to add an explicit `isNotNull(agentRuns.agentId)` filter, or a `null`-agent enrichment row silently appears in the run timeline / inflates the summed cost. Any new non-agent write to `agent_runs` needs the same filter added at every read site, not just the new one.
+- 2026-09-23 — `test/helpers/runs.ts`'s `waitForPrRuns({ expected })` counts ANY terminal `agent_runs` row for the PR, not specifically the target review agents' rows — its own comment ("ignores any extra rows, e.g. a trifecta scan") describes intent the code didn't implement. A fast-failing extra row (e.g. intent classification failing because no `openrouter` key/mock is configured) satisfies `terminal.length >= expected` before the real review finishes, so the test reads `/pulls/:id/reviews` too early and gets `[]`. Fixed by filtering to `agentId != null` before counting. Any new code path that writes a non-agent `agent_runs` row needs a mocked `openrouter` `MockLLMProvider` in tests that call `/pulls/:id/review`, or it silently races.
+
 ## Recurring Errors & Fixes
+
+- 2026-09-23 — `runOneAgent` (`modules/reviews/run-executor.ts`) calls `completeAgentRun` (status → `done`) BEFORE `saveRunTrace` persists the run's `run_traces` document. A test that polls `agent_runs.status` and then immediately fetches `GET /runs/:id/trace` can hit this window and get `prompt_assembly: undefined` — rare under a light load, but reproduces under full-suite contention (observed in `test/skills-prompt.it.test.ts`, passed 3/3 in isolation, flaked once in the full run). Not something L03 introduced, but worth fixing (swap the two persistence calls, or poll for the trace row instead of just the status) before it flakes CI.
 
 ## Session Notes
 

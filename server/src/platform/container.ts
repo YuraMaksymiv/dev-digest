@@ -14,6 +14,7 @@ import { runBus, type RunBus } from './sse.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
+import { fetchLinkedContent } from '../adapters/http/link-fetch.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
@@ -51,6 +52,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** Best-effort generic URL/spec fetch (intent enrichment) — tests inject a stub. */
+  linkFetch?: (url: string) => Promise<string | undefined>;
 }
 
 export class Container {
@@ -90,6 +93,11 @@ export class Container {
     if (this.overrides.git) return this.overrides.git;
     this._git ??= new SimpleGitClient(this.config.cloneDir);
     return this._git;
+  }
+
+  /** Best-effort generic URL/spec fetch (intent enrichment). */
+  get linkFetch(): (url: string) => Promise<string | undefined> {
+    return this.overrides.linkFetch ?? fetchLinkedContent;
   }
 
   get agentsRepo(): AgentsRepository {

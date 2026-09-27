@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  jsonb,
+  timestamp,
+  doublePrecision,
+  check,
+} from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -45,14 +54,41 @@ export const findings = pgTable('findings', {
   dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
 });
 
-export const prIntent = pgTable('pr_intent', {
-  prId: uuid('pr_id')
-    .primaryKey()
-    .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  intent: text('intent').notNull(),
-  inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-});
+export const prIntent = pgTable(
+  'pr_intent',
+  {
+    prId: uuid('pr_id')
+      .primaryKey()
+      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+    intent: text('intent').notNull(),
+    inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    confidence: doublePrecision('confidence').notNull(),
+    category: text('category', {
+      enum: [
+        'feat',
+        'fix',
+        'refactor',
+        'perf',
+        'chore',
+        'docs',
+        'test',
+        'style',
+        'build',
+        'ci',
+        'security',
+      ],
+    }).notNull(),
+  },
+  (t) => ({
+    // `text(..., { enum })` is a TypeScript narrowing only — it emits no DDL.
+    // This CHECK is what actually stops a bad value reaching the column.
+    categoryCk: check(
+      'pr_intent_category_ck',
+      sql`${t.category} in ('feat', 'fix', 'refactor', 'perf', 'chore', 'docs', 'test', 'style', 'build', 'ci', 'security')`,
+    ),
+  }),
+);
 
 export const prBrief = pgTable('pr_brief', {
   prId: uuid('pr_id')

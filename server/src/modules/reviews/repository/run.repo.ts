@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -26,6 +26,9 @@ export async function activeRunsForPull(
         eq(t.agentRuns.workspaceId, workspaceId),
         eq(t.agentRuns.prId, prId),
         eq(t.agentRuns.status, 'running'),
+        // Excludes non-agent observability rows (e.g. intent derivation,
+        // `agent_id IS NULL`) — this lists which AGENTS are running now.
+        isNotNull(t.agentRuns.agentId),
       ),
     );
   return rows.map((r) => ({
@@ -46,7 +49,15 @@ export async function listRunsForPull(
     .select({ run: t.agentRuns, agentName: t.agents.name })
     .from(t.agentRuns)
     .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
-    .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.prId, prId)))
+    .where(
+      and(
+        eq(t.agentRuns.workspaceId, workspaceId),
+        eq(t.agentRuns.prId, prId),
+        // Excludes non-agent observability rows (e.g. intent derivation,
+        // `agent_id IS NULL`) — this is the PR's AGENT run history.
+        isNotNull(t.agentRuns.agentId),
+      ),
+    )
     .orderBy(desc(t.agentRuns.ranAt));
   return rows.map(({ run, agentName }) => ({
     run_id: run.id,

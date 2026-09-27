@@ -1,13 +1,15 @@
+import { createHash } from 'node:crypto';
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine, toSkillPromptBlock } from './helpers.js';
+import { taskLine, toSkillPromptBlock, renderIntentForPrompt, summarizePromptSections } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { loadIntent } from './intent-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -104,6 +106,15 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent derivation is enrichment (never fails the run) and must run
+    // SEQUENTIALLY after the diff, which it reads (`diff.files`). No try/catch
+    // needed here — `loadIntent` never throws.
+    const intent = await runLog.step(
+      'Deriving PR intent',
+      () => loadIntent(this.container, this.repo, workspaceId, pull, repo, diff, runLog),
+      { kind: 'tool' },
+    );
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -111,7 +122,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intent, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -140,6 +151,7 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
     diff: UnifiedDiff,
+    intent: Intent | undefined,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -188,6 +200,40 @@ export class ReviewRunExecutor {
       // pre-L02 (see the omit-when-empty spread below).
       const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
 
+      // ---- Observability: safe prompt-assembly log ---------------------------
+      // Structured, content-free metadata for every section that WILL be sent
+      // (section name, source, size) — never the section's own text, the raw
+      // diff, or spec/ticket content. `diff.raw` reflects the whole PR; under
+      // map-reduce each LLM call actually sends one file's slice, but logging
+      // the whole-diff size here (once per agent run, not once per chunk) is
+      // the right granularity for this line — per-chunk sizes are visible in
+      // the "map: reviewing <file>" events already emitted per chunk.
+      const promptSections = summarizePromptSections(
+        [
+          { section: 'system', source: 'agent-config', content: agent.systemPrompt },
+          { section: 'task', source: 'derived', content: task },
+          { section: 'pr-description', source: 'pr-description', content: pull.body ?? undefined },
+          { section: 'intent', source: 'intent', content: intent ? renderIntentForPrompt(intent) : undefined },
+          {
+            section: 'skills',
+            source: 'skills',
+            content: skillBlocks.length > 0 ? skillBlocks.join('\n\n') : undefined,
+          },
+          { section: 'repo-map', source: 'repo-map', content: repoMap },
+          { section: 'callers', source: 'callers', content: callersDigest },
+          { section: 'diff', source: 'diff', content: diff.raw },
+        ],
+        (text) => this.container.tokenizer.count(text),
+        this.container.config.promptLogVerbose
+          ? (text) => createHash('sha256').update(text).digest('hex').slice(0, 8)
+          : undefined,
+      );
+      runLog.event('tool', 'Prompt assembled', {
+        correlationId: runId,
+        model: `${agent.provider}/${agent.model}`,
+        sections: promptSections,
+      });
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -213,6 +259,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived PR intent/scope (enrichment) — omitted when derivation
+        // failed/skipped, identically to the other best-effort digests above.
+        ...(intent ? { intent: renderIntentForPrompt(intent) } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
