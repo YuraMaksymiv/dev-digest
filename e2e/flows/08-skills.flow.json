@@ -1,0 +1,18 @@
+{
+  "name": "Skills lab lists the seeded skills and the agent's Skills tab binds them",
+  "description": "Loads /skills and confirms a seeded skill renders in the rail, then opens the Security Reviewer's Skills tab and confirms the linked-count chip and a skill row. Exercises the /skills route, the agent Skills tab, and both API fetches.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "pr-quality-rubric"], "label": "seeded skill is visible in the rail" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Security Reviewer", "--click"], "label": "open the seeded agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached" },
+    { "cmd": ["find", "role", "button", "--name", "Skills", "--click"], "label": "switch to the Skills tab" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skill links fetch settles" },
+    { "cmd": ["wait", "--text", "3 of 6 enabled"], "label": "the linked-count chip reflects the seed" },
+    { "cmd": ["wait", "--text", "secret-leakage-gate"], "label": "a linked skill row renders" }
+  ]
+}

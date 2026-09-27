@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -183,6 +183,11 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — the agent's enabled skills, rendered as prompt blocks. Empty for
+      // an agent with no skills, which keeps its prompt byte-identical to
+      // pre-L02 (see the omit-when-empty spread below).
+      const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -195,6 +200,11 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // L02 — skills, same omit-when-empty contract: `assemblePrompt` drops
+        // the `## Skills / rules` section (and leaves `assembly.skills` null)
+        // when the array is absent, so an agent with none is unchanged. Never
+        // pass `skills: []`.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -313,6 +323,35 @@ export class ReviewRunExecutor {
       this.container.runBus.complete(runId);
       throw err;
     }
+  }
+
+  /**
+   * The bodies of the skills linked to this agent AND enabled on both switches,
+   * in link order — what the prompt's `## Skills / rules` section is built from.
+   *
+   * Returns `[]` when the agent has none, which omits the section entirely.
+   * Goes through `container.agentsRepo` (which owns `agent_skills`) rather than
+   * reaching into the agents module.
+   *
+   * The token count is per CALL, not per run: under `map-reduce` the whole block
+   * is re-sent for every changed file.
+   */
+  private async buildSkillBlocks(agentId: string, runLog: RunLogger): Promise<string[]> {
+    let links;
+    try {
+      links = await this.agents.enabledSkillsForPrompt(agentId);
+    } catch (err) {
+      // Never let an enrichment break the run — surface only as a Live Log info.
+      runLog.info(`skills: skipped — ${(err as Error).message}`);
+      return [];
+    }
+    if (links.length === 0) return [];
+
+    const blocks = links.map((l) => toSkillPromptBlock(l.skill));
+    const tokens = this.container.tokenizer.count(blocks.join('\n\n'));
+    const names = links.map((l) => l.skill.name).join(', ');
+    runLog.info(`skills: ${links.length} attached (+~${tokens} tokens/call) — ${names}`);
+    return blocks;
   }
 
   /**

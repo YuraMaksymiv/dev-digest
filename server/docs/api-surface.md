@@ -49,6 +49,19 @@ logs a warning and serves what Postgres already has.
 CRUD at `/agents`, plus `/agents/:id/versions`, `/agents/:id/skills`, and model
 discovery at `/agents/:id/models` and `/providers/:id/models`.
 
+## conventions — `modules/conventions`
+
+| Route | What it does |
+|---|---|
+| `GET /repos/:id/conventions` | candidates for the repo, strongest confidence first |
+| `POST /repos/:id/conventions/extract` | one scan: sample (code) → propose (one model call) → verify (code). Returns the candidates plus `proposed` / `dropped_ungrounded` / `dropped_duplicate` |
+| `POST /repos/:id/conventions/skill` | a skill DRAFT merged from the accepted set — writes nothing; `POST /skills` persists it |
+| `PATCH /conventions/:id` | accept / reject, or edit `rule` / `rationale` |
+| `DELETE /conventions/:id` | drop a candidate |
+
+The extractor 422s before the model call when the repo is not cloned or has no
+readable files — a scan of nothing would still be billed.
+
 ## polling / repo-intel
 
 `POST /repos/:id/poll` triggers a poll cycle; `modules/repo-intel` owns the

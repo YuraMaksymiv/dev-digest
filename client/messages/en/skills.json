@@ -9,17 +9,20 @@
     "menu": {
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
-      "community": "Search community skills…"
+      "community": "Search community skills…",
+      "fromScratch": "Create from scratch"
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
-      "cta": "Import from file"
+      "body": "A skill is reusable review guidance — text an agent gets appended to its prompt. Write one and link it to an agent.",
+      "cta": "Create your first skill"
     },
     "selectPrompt": {
       "title": "Select a skill",
       "body": "Pick a skill on the left to preview its body."
-    }
+    },
+    "usedBy": "{count, plural, one {# agent} other {# agents}}",
+    "unused": "unused"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -85,7 +88,9 @@
       "extracted": "Extracted",
       "community": "Community",
       "imported_url": "Imported"
-    }
+    },
+    "toggleAria": "Enable or disable skill: {name}",
+    "deleteAria": "Delete skill: {name}"
   },
   "preview": {
     "untrustedBadge": "untrusted source",
@@ -97,5 +102,88 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "editor": {
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "versions": "Versions"
+    },
+    "enabled": "Enabled",
+    "enabledHint": "A disabled skill reaches no agent’s prompt, however it is linked.",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "The skill’s interface — write it as a directive, saying when the skill applies.",
+    "descriptionPlaceholder": "When [condition in the diff], report [what to flag].",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "bodyHint": "Appended to the prompt of every agent that links this skill, verbatim.",
+    "tokenHint": "~{count} tokens",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "savedToast": "Skill saved (v{version})",
+    "delete": "Delete",
+    "usedBy": "used by {count, plural, one {# agent} other {# agents}}",
+    "unused": "not linked to any agent",
+    "previewNotice": "This is the text the agent receives. It becomes instructions in the prompt — not data.",
+    "deleteConfirm": {
+      "title": "Delete this skill?",
+      "body": "Deleting “{name}” removes it and its version history. This cannot be undone.",
+      "usedByWarning": "It is linked to {count, plural, one {# agent} other {# agents}}, which will lose it:",
+      "confirm": "Delete skill",
+      "cancel": "Cancel"
+    },
+    "unsaved": "unsaved"
+  },
+  "new": {
+    "title": "Create skill",
+    "subtitle": "A skill is reusable review guidance — text only, never executed.",
+    "defaultName": "new-skill",
+    "namePlaceholder": "e.g. prefer-early-return",
+    "descriptionPlaceholder": "When [condition in the diff], report [what to flag].",
+    "defaultBody": "## Rule\n\nDescribe when this applies and what to report.\n\nDo not report:\n- …",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "cancel": "Cancel"
+  },
+  "versions": {
+    "current": "current",
+    "empty": "No versions yet.",
+    "loadError": "Could not load the version history.",
+    "hint": "A content edit appends a version. Toggling Enabled does not.",
+    "diff": "Diff",
+    "restore": "Restore",
+    "diffAria": "Show what changed in version {version}",
+    "restoreAria": "Restore the body of version {version}",
+    "identical": "No change to the body in this save.",
+    "unchangedLines": "{count, plural, one {# unchanged line} other {# unchanged lines}}",
+    "restoredToast": "Restored v{from} as v{version}"
+  },
+  "import": {
+    "titleUrl": "Import skill from URL",
+    "titleFile": "Import skill from file",
+    "subtitleUrl": "Fetch a markdown skill from a public URL. Nothing is saved until you confirm.",
+    "subtitleFile": "Read a markdown file from this machine. Nothing is saved until you confirm.",
+    "urlLabel": "URL",
+    "urlPlaceholder": "https://example.com/skills/no-then-chains.md",
+    "urlHint": "Only public http/https addresses. Private and loopback hosts are refused.",
+    "fetch": "Fetch",
+    "fetching": "Fetching…",
+    "fileLabel": "Markdown file",
+    "fileHint": "A .md, .markdown or .txt file, up to 256 KB.",
+    "choose": "Choose a file…",
+    "fetchFailed": "Could not fetch that URL.",
+    "fileTooLarge": "That file is too large to import.",
+    "fileEmpty": "That file is empty.",
+    "fetchedFrom": "Fetched from {url}",
+    "readFrom": "Read from {name}",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "body": "Skill body",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createFailed": "Could not create the skill."
   }
 }

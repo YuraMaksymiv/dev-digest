@@ -16,7 +16,8 @@ TypeScript 5.7.
 
 ## Map
 
-- `src/app/` — route segments: `agents`, `onboarding`, `repos`, `settings`.
+- `src/app/` — route segments: `agents`, `skills`, `onboarding`, `repos`
+  (incl. `repos/[repoId]/conventions`), `settings`.
 - `src/components/` — feature components: `diff-viewer`, `app-shell`,
   `page-shell`, `showcase`, `mermaid-diagram`.
 - `src/lib/` — API client, hooks, repo context, theming, i18n glue.

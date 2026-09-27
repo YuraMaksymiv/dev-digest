@@ -6,7 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,11 +21,15 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract), all on the default
+ * openrouter/deepseek-v4-flash provider+model.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * L02 also seeds the starter skills (./seed-skills.ts) and links them to the
+ * agents named in each skill's `agents` list (mostly Security Reviewer, plus
+ * the two skills shared with Test Quality Reviewer / API Contract Reviewer).
+ * Later lessons populate the remaining tables (conventions,
+ * memory, eval, …) once their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -175,7 +182,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (the five starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -211,6 +218,28 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Flags untested branches and weak assertions in the tests a diff adds.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Flags breaking changes to routes and shared Zod contracts.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -220,7 +249,67 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  await seedSkills(db, workspaceId);
+
   return { workspaceId, userId };
+}
+
+/**
+ * Seed the starter skills and link them to the agents that name them.
+ *
+ * Idempotent by name, like the agents block above, and it NEVER overwrites an
+ * existing skill — a re-seed must not clobber an edit made in the studio.
+ *
+ * Links are written straight to `agent_skills` rather than through
+ * `AgentsRepository`, so seeding does not bump a seeded agent's version. (The
+ * agents above are inserted directly too, so they carry no `agent_versions`
+ * rows at all; going through the repository here would give them a v1 snapshot
+ * and leave the pair inconsistent.)
+ */
+async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  for (const [i, sk] of SEED_SKILLS.entries()) {
+    let [skill] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+
+    if (!skill) {
+      [skill] = await db
+        .insert(t.skills)
+        .values({
+          workspaceId,
+          name: sk.name,
+          description: sk.description,
+          type: sk.type,
+          source: 'manual',
+          body: sk.body,
+          enabled: true,
+          version: 1,
+        })
+        .returning();
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: skill!.id, version: 1, body: sk.body })
+        .onConflictDoNothing();
+    }
+
+    for (const agentName of sk.agents) {
+      const [agent] = await db
+        .select()
+        .from(t.agents)
+        .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+      if (!agent) continue;
+      await db
+        .insert(t.agentSkills)
+        .values({
+          agentId: agent.id,
+          skillId: skill!.id,
+          order: i,
+          enabled: sk.linkEnabled ?? false,
+        })
+        .onConflictDoNothing();
+    }
+  }
 }
 
 // CLI entrypoint

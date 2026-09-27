@@ -12,6 +12,7 @@ refactor can silently break, not a second unit-test layer.
 | `05-pr-diff` | PR → Files changed | seeded file renders in the diff viewer |
 | `06-onboarding` | `/onboarding` | add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys`, `/settings/models` | section titles render |
+| `08-skills` | skills lab → agent Skills tab | seeded skill renders in the rail; the agent's `3 of 6 enabled` chip and a linked skill row |
 
 ## Deliberately not covered
 

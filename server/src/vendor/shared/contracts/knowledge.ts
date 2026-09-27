@@ -131,6 +131,35 @@ export const Skill = z.object({
 });
 export type Skill = z.infer<typeof Skill>;
 
+// A skill as the list rail shows it: the skill plus how many agents link it.
+// `used_by` is computed on read (a join + count), never denormalised onto the
+// row — nothing can then go stale.
+export const SkillSummary = Skill.extend({ used_by: z.number().int() });
+export type SkillSummary = z.infer<typeof SkillSummary>;
+
+// An immutable body snapshot, written whenever a skill's CONTENT changes
+// (name/description/type/body). Toggling `enabled` writes no version.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+// A skill fetched from a URL but NOT yet persisted. Same preview-then-confirm
+// shape as the conventions draft: the server fetches and proposes, the user
+// edits, and `POST /skills` is what makes it exist.
+export const SkillImportDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source: SkillSource,
+  source_url: z.string(),
+});
+export type SkillImportDraft = z.infer<typeof SkillImportDraft>;
+
 export const CommunitySkill = z.object({
   name: z.string(),
   repo: z.string(),
@@ -141,15 +170,74 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+// A house rule the extractor found already holding in a repo, with the code
+// that proves it. The model PROPOSES these; code picks the files it reads and
+// code verifies every citation, so a candidate that reaches the client has
+// had its snippet located in the cited file.
+
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'error_handling',
+  'async',
+  'typing',
+  'testing',
+  'imports',
+  'api',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+// Triage is three-state, not a boolean: a re-scan replaces only `pending`
+// candidates, so a rule the user rejected is never proposed again.
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
+  // One sentence on what a reviewer should flag. Editable; null when the
+  // model returned none.
+  rationale: z.string().nullish(),
   evidence_path: z.string(),
+  // 1-based and VERIFIED — the line the gate located the snippet at, which is
+  // not necessarily the line the model claimed.
+  evidence_line: z.number().int().nullish(),
+  // Sliced from the file on disk, never the model's transcription of it.
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  status: ConventionStatus,
+  created_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+// What one scan returns. The three counters are shown in the UI on purpose:
+// "3 kept of 12 proposed" reads as the evidence gate working, where a bare
+// list of 3 reads as the feature being broken.
+export const ConventionExtractResult = z.object({
+  candidates: z.array(ConventionCandidate),
+  proposed: z.number().int(),
+  dropped_ungrounded: z.number().int(),
+  dropped_duplicate: z.number().int(),
+  sampled_files: z.array(z.string()),
+  provider: z.string(),
+  model: z.string(),
+  cost_usd: z.number().nullish(),
+});
+export type ConventionExtractResult = z.infer<typeof ConventionExtractResult>;
+
+// The un-persisted skill assembled from the accepted candidates. The server
+// builds it, the user edits it, and it exists only once POST /skills is
+// called — the same preview-then-confirm flow as skill import.
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  evidence_files: z.array(z.string()),
+  convention_ids: z.array(z.string()),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
@@ -191,18 +279,43 @@ export const Agent = z.object({
 });
 export type Agent = z.infer<typeof Agent>;
 
+// An agent as the list renders it: the agent plus how many skills it links.
+// `skills_count` is computed on read (a join + count), never denormalised onto
+// the row — the same shape `SkillSummary.used_by` uses in the other direction.
+export const AgentSummary = Agent.extend({ skills_count: z.number().int() });
+export type AgentSummary = z.infer<typeof AgentSummary>;
+
 export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  // The PER-AGENT switch (`agent_skills.enabled`), not the skill's global one.
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+// A row of the agent's Skills tab: every skill field plus the two link columns,
+// so the tab renders name/type/description without an N+1 back to /skills.
+// `enabled` is the skill's GLOBAL switch; `link_enabled` is this agent's.
+// A skill reaches the prompt only when BOTH are true.
+export const AgentSkillDetail = Skill.extend({
+  order: z.number().int(),
+  link_enabled: z.boolean(),
+});
+export type AgentSkillDetail = z.infer<typeof AgentSkillDetail>;
 
 // The immutable config snapshot captured in `agent_versions` whenever an agent's
 // config changes (everything but `enabled`). Mirrors the shape written by the
 // agents repository — provider/model/prompt/output_schema/strategy/gate/repo_intel
-// plus the ordered skill ids linked at snapshot time. Used for reproducibility
-// (eval replays a past version) and for surfacing an agent's edit history.
+// plus the ordered skill ids that shaped the prompt at snapshot time. Used for
+// reproducibility (eval replays a past version) and for surfacing an agent's
+// edit history.
+//
+// `skills` semantics changed in L02 and the shape did NOT, so there is no
+// version marker and old rows still parse: before L02 it listed EVERY linked
+// skill; from L02 on it lists only the links whose per-agent switch was on —
+// i.e. the ones that actually reached the prompt. This comment is the only
+// migration artefact that exists for it.
 export const AgentVersionConfig = z.object({
   provider: Provider,
   model: z.string(),

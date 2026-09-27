@@ -1,24 +1,51 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  boolean,
+  jsonb,
+  primaryKey,
+  index,
+  check,
+} from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 
-export const skills = pgTable('skills', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  description: text('description').notNull(),
-  type: text('type', { enum: ['rubric', 'convention', 'security', 'custom'] }).notNull(),
-  source: text('source', {
-    enum: ['manual', 'imported_url', 'extracted', 'community'],
-  }).notNull(),
-  body: text('body').notNull(),
-  enabled: boolean('enabled').notNull().default(true),
-  version: integer('version').notNull().default(1),
-  evidenceFiles: jsonb('evidence_files').$type<string[]>(),
-  createdAt: now(),
-});
+export const skills = pgTable(
+  'skills',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    type: text('type', { enum: ['rubric', 'convention', 'security', 'custom'] }).notNull(),
+    source: text('source', {
+      enum: ['manual', 'imported_url', 'extracted', 'community'],
+    }).notNull(),
+    body: text('body').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    version: integer('version').notNull().default(1),
+    evidenceFiles: jsonb('evidence_files').$type<string[]>(),
+    createdAt: now(),
+  },
+  (t) => ({
+    workspaceIdx: index('skills_workspace_idx').on(t.workspaceId),
+    // `text(..., { enum })` is a TypeScript narrowing only — it emits no DDL.
+    // These CHECKs are what actually stops a bad value reaching the column.
+    typeCk: check(
+      'skills_type_ck',
+      sql`${t.type} in ('rubric', 'convention', 'security', 'custom')`,
+    ),
+    sourceCk: check(
+      'skills_source_ck',
+      sql`${t.source} in ('manual', 'imported_url', 'extracted', 'community')`,
+    ),
+  }),
+);
 
 export const skillVersions = pgTable(
   'skill_versions',

@@ -90,3 +90,16 @@ export function taskLine(pull: PullRow): string {
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
 }
+
+/**
+ * Render one linked skill as a block of the prompt's `## Skills / rules`
+ * section.
+ *
+ * The `### name` header is added HERE rather than in `reviewer-core`: the engine
+ * takes already-resolved strings, and the CI runner — which resolves the same
+ * skills from `.devdigest/skills/*.md` instead of the DB — has to format them
+ * identically for a studio run and a CI run to produce the same prompt.
+ */
+export function toSkillPromptBlock(skill: { name: string; body: string }): string {
+  return `### ${skill.name}\n${skill.body.trim()}`;
+}
