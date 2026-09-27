@@ -127,6 +127,21 @@ describe("SkillsTab", () => {
     expect(screen.getByText("disabled globally")).toBeInTheDocument();
   });
 
+  it("cannot drag or reorder a globally disabled skill even with the filter empty", () => {
+    renderTab();
+    // no-then-chains (s3) is muted globally — its row must not be draggable
+    // and must not offer arrow buttons, unlike an active row.
+    expect(
+      screen.queryByRole("button", { name: "Move no-then-chains up" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Move no-then-chains down" }),
+    ).not.toBeInTheDocument();
+
+    const row = screen.getByText("no-then-chains").closest("div[draggable]");
+    expect(row).toHaveAttribute("draggable", "false");
+  });
+
   it("hides the reorder controls while the filter narrows the list", () => {
     renderTab();
     expect(screen.getByRole("button", { name: "Move pr-quality-rubric up" })).toBeInTheDocument();
