@@ -1,5 +1,7 @@
 /** Pure helpers for the DiffViewer. */
 import { HUNK_HEADER_RE } from "./constants";
+import type { PrFile } from "@/lib/types";
+import type { SmartDiffGroup, SmartDiffRole } from "@devdigest/shared";
 
 export interface Line {
   kind: "add" | "del" | "ctx" | "hunk";
@@ -35,4 +37,33 @@ export function parsePatch(patch: string | null | undefined): Line[] {
     }
   }
   return out;
+}
+
+export interface FileGroup {
+  role: SmartDiffRole;
+  files: PrFile[];
+}
+
+export type OrderedFiles = { kind: "flat"; files: PrFile[] } | { kind: "grouped"; groups: FileGroup[] };
+
+/**
+ * Order the "Files changed" list either flat (GitHub order) or by Smart Diff
+ * role. `order === 'original'`, or `groups` not yet loaded, always falls back
+ * to flat. In `'smart'` mode, each `SmartDiffGroup.files[].path` is joined back
+ * to the matching `PrFile` from the flat `files` prop — groups with no
+ * matching file (the server always returns all 5, decision §2) are dropped.
+ */
+export function orderFiles(
+  files: PrFile[],
+  groups: SmartDiffGroup[] | undefined,
+  order: "smart" | "original",
+): OrderedFiles {
+  if (order === "original" || !groups) return { kind: "flat", files };
+  const byPath = new Map(files.map((f) => [f.path, f]));
+  const result: FileGroup[] = [];
+  for (const g of groups) {
+    const matched = g.files.map((f) => byPath.get(f.path)).filter((f): f is PrFile => !!f);
+    if (matched.length > 0) result.push({ role: g.role, files: matched });
+  }
+  return { kind: "grouped", groups: result };
 }
