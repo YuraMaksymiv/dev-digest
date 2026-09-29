@@ -8,17 +8,31 @@ import { type Line } from "../helpers";
 import { s, lineRowFor, lineSignFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
+import { FindingCard } from "@/components/finding-card";
+import type { FindingActionKind, FindingRecord } from "@devdigest/shared";
 
 export function CodeLine({
   ln,
   path,
   threads,
   commenting,
+  findings,
+  showFindings = true,
+  onFindingAction,
+  findingActionPending,
+  repoFullName,
+  headSha,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  findings?: FindingRecord[];
+  showFindings?: boolean;
+  onFindingAction?: (findingId: string, action: FindingActionKind) => void;
+  findingActionPending?: boolean;
+  repoFullName?: string | null;
+  headSha?: string | null;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -69,6 +83,21 @@ export function CodeLine({
         threads.map((th) => (
           <CommentThreadView key={th.rootId} thread={th} commenting={commenting} path={path} />
         ))}
+
+      {showFindings && findings && findings.length > 0 && (
+        <div style={cs.thread}>
+          {findings.map((f) => (
+            <FindingCard
+              key={f.id}
+              f={f}
+              pending={findingActionPending}
+              repoFullName={repoFullName}
+              headSha={headSha}
+              onAction={(act) => onFindingAction?.(f.id, act)}
+            />
+          ))}
+        </div>
+      )}
 
       {commenting && composing && target && (
         <InlineComposer

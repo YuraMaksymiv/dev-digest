@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { SectionLabel, Button } from "@devdigest/ui";
-import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
-import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
+import { DiffViewer, type DiffCommentApi, type SmartDiffViewerData } from "@/components/diff-viewer";
+import { usePrComments, useCreatePrComment, useFindingAction, useSmartDiff } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
-import type { PrFile } from "@devdigest/shared";
+import type { FindingRecord, PrFile } from "@devdigest/shared";
 
 interface DiffTabProps {
   prId: string | null;
@@ -13,15 +14,45 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  findings: FindingRecord[];
+  repoFullName?: string | null;
+  headSha?: string | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({
+  prId,
+  filesCount,
+  files,
+  canComment,
+  findings,
+  repoFullName,
+  headSha,
+}: DiffTabProps) {
+  const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
-  // Comments start hidden so the diff is clean by default — toggle to reveal.
+  const { data: smartDiff } = useSmartDiff(prId);
+  const action = useFindingAction();
+  const [order, setOrder] = React.useState<"smart" | "original">("smart");
+  // GitHub comments start hidden so the diff is clean by default — toggle to reveal.
   const [showComments, setShowComments] = React.useState(false);
+  // Findings start VISIBLE (P1: expanding a file must show its finding, no extra
+  // click) — the same toggle below can still hide them together with GitHub
+  // comments for a clean diff.
+  const [showFindings, setShowFindings] = React.useState(true);
 
   const commentCount = comments?.length ?? 0;
+  const anyExtrasVisible = showComments || showFindings;
+
+  const findingsByFile = React.useMemo(() => {
+    const map = new Map<string, FindingRecord[]>();
+    for (const f of findings) {
+      const list = map.get(f.file) ?? [];
+      list.push(f);
+      map.set(f.file, list);
+    }
+    return map;
+  }, [findings]);
 
   const commenting: DiffCommentApi = {
     comments: comments ?? [],
@@ -40,26 +71,52 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
     },
   };
 
+  const smartDiffData: SmartDiffViewerData = {
+    groups: smartDiff?.groups,
+    order,
+    findingsByFile,
+    showFindings,
+    onFindingAction: (findingId, act) => {
+      if (prId) action.mutate({ findingId, action: act, prId });
+    },
+    findingActionPending: action.isPending,
+    repoFullName,
+    headSha,
+  };
+
   return (
     <section>
       <SectionLabel
         icon="Code"
         right={
-          commentCount > 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Button
               kind="ghost"
               size="sm"
-              icon={showComments ? "EyeOff" : "Eye"}
-              onClick={() => setShowComments((v) => !v)}
+              onClick={() => setOrder((o) => (o === "smart" ? "original" : "smart"))}
             >
-              {showComments ? "Hide comments" : "Show comments"} ({commentCount})
+              {order === "smart" ? t("smartDiff.originalOrder") : t("smartDiff.smartOrder")}
             </Button>
-          ) : undefined
+            {(commentCount > 0 || findings.length > 0) && (
+              <Button
+                kind="ghost"
+                size="sm"
+                icon={anyExtrasVisible ? "EyeOff" : "Eye"}
+                onClick={() => {
+                  const next = !anyExtrasVisible;
+                  setShowComments(next);
+                  setShowFindings(next);
+                }}
+              >
+                {anyExtrasVisible ? "Hide comments" : "Show comments"} ({commentCount})
+              </Button>
+            )}
+          </div>
         }
       >
         Files changed · {filesCount} files
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} />
+      <DiffViewer files={files} commenting={commenting} smartDiff={smartDiffData} />
     </section>
   );
 }
