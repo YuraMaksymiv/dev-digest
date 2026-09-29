@@ -125,6 +125,32 @@ describe('AI contracts parse fixtures', () => {
     expect(d.groups[0]!.role).toBe('core');
   });
 
+  it('SmartDiff covers all 5 roles; an unknown role is rejected', () => {
+    const d = SmartDiff.parse({
+      groups: [
+        { role: 'core', files: [{ path: 'a.ts', additions: 1, deletions: 0, finding_lines: [] }] },
+        { role: 'tests', files: [{ path: 'a.test.ts', additions: 1, deletions: 0, finding_lines: [] }] },
+        { role: 'wiring', files: [{ path: 'index.ts', additions: 1, deletions: 0, finding_lines: [] }] },
+        { role: 'docs', files: [{ path: 'README.md', additions: 1, deletions: 0, finding_lines: [] }] },
+        {
+          role: 'boilerplate',
+          files: [{ path: 'pnpm-lock.yaml', additions: 1, deletions: 0, finding_lines: [] }],
+        },
+      ],
+      split_suggestion: { too_big: false, total_lines: 5, proposed_splits: [] },
+    });
+    expect(d.groups.map((g) => g.role)).toEqual(['core', 'tests', 'wiring', 'docs', 'boilerplate']);
+
+    expect(() =>
+      SmartDiff.parse({
+        groups: [
+          { role: 'not-a-role', files: [] },
+        ],
+        split_suggestion: { too_big: false, total_lines: 0, proposed_splits: [] },
+      }),
+    ).toThrow();
+  });
+
   it('Conformance / Onboarding / EvalRun / MemoryItem', () => {
     expect(() =>
       Conformance.parse({

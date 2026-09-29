@@ -5,8 +5,9 @@
  * (crypto included) — where a helper needs one (e.g. hashing), the caller
  * injects it as a function instead.
  */
-import type { Finding, Intent } from '@devdigest/shared';
+import type { Finding, Intent, SmartDiff, SmartDiffFile, SmartDiffGroup, SmartDiffRole } from '@devdigest/shared';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
+import { SMART_DIFF_BIG_PR_LINES, SMART_DIFF_CLASSIFY_RULES, SMART_DIFF_GROUP_ORDER } from './constants.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
 // shared with the CI runner); re-exported here for backward-compatible imports.
@@ -172,4 +173,70 @@ export function renderIntentForPrompt(intent: Intent): string {
     lines.push('', 'Out of scope:', ...intent.out_of_scope.map((s) => `- ${s}`));
   }
   return lines.join('\n');
+}
+
+// ---- Smart Diff (Files-changed grouping) -----------------------------------
+
+/** Classify one file path into a Smart Diff role. First rule to match wins;
+ *  a path matching none of `SMART_DIFF_CLASSIFY_RULES` falls back to `core`. */
+export function classifyFile(path: string): SmartDiffRole {
+  for (const rule of SMART_DIFF_CLASSIFY_RULES) {
+    if (rule.test(path)) return rule.role;
+  }
+  return 'core';
+}
+
+/** The subset of a `pr_files` row Smart Diff needs — kept structural (not a
+ *  `db/rows.js` import) so this file stays free of any DB-layer dependency. */
+export interface SmartDiffInputFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+/**
+ * Build the Smart Diff view of a PR: each changed file classified into a role,
+ * grouped in `SMART_DIFF_GROUP_ORDER` (always all 5 groups, even empty), each
+ * file's finding lines sorted/deduped. `pseudocode_summary` stays `null` —
+ * reserved for a future lesson.
+ */
+export function buildSmartDiff(files: SmartDiffInputFile[], findings: FindingRow[]): SmartDiff {
+  const findingLinesByFile = new Map<string, number[]>();
+  for (const f of findings) {
+    const list = findingLinesByFile.get(f.file) ?? [];
+    list.push(f.startLine);
+    findingLinesByFile.set(f.file, list);
+  }
+
+  const filesByRole = new Map<SmartDiffRole, SmartDiffFile[]>(
+    SMART_DIFF_GROUP_ORDER.map((role) => [role, []]),
+  );
+
+  let totalLines = 0;
+  for (const file of files) {
+    const role = classifyFile(file.path);
+    const lines = [...new Set(findingLinesByFile.get(file.path) ?? [])].sort((a, b) => a - b);
+    filesByRole.get(role)!.push({
+      path: file.path,
+      pseudocode_summary: null,
+      additions: file.additions,
+      deletions: file.deletions,
+      finding_lines: lines,
+    });
+    totalLines += file.additions + file.deletions;
+  }
+
+  const groups: SmartDiffGroup[] = SMART_DIFF_GROUP_ORDER.map((role) => ({
+    role,
+    files: filesByRole.get(role)!,
+  }));
+
+  return {
+    groups,
+    split_suggestion: {
+      too_big: totalLines >= SMART_DIFF_BIG_PR_LINES,
+      total_lines: totalLines,
+      proposed_splits: [],
+    },
+  };
 }

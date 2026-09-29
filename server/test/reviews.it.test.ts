@@ -7,7 +7,7 @@ import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { Review } from '@devdigest/shared';
+import { SmartDiff, type Review } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -379,6 +379,38 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // The replay buffer should contain our log lines as SSE `data:` frames.
     expect(sse.payload).toContain('Starting review');
     expect(sse.payload).toContain('Citation grounding');
+    await app.close();
+  });
+
+  it('GET /pulls/:id/smart-diff: 200, a valid SmartDiff, groups in display order — no LLM run needed', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // setupRepoAndPr already seeded one core file (src/config.ts); add a second,
+    // docs-role file so the route's output spans ≥2 roles.
+    await pg.handle.db.insert(t.prFiles).values({
+      prId: pr.id,
+      path: 'README.md',
+      additions: 2,
+      deletions: 0,
+      patch: '@@ -1,1 +1,3 @@\n line\n+doc line\n+doc line 2',
+    });
+
+    const res = await app.inject({ method: 'GET', url: `/pulls/${pr.id}/smart-diff` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(SmartDiff.safeParse(body).success).toBe(true);
+    expect(body.groups.map((g: { role: string }) => g.role)).toEqual([
+      'core',
+      'tests',
+      'wiring',
+      'docs',
+      'boilerplate',
+    ]);
+    const core = body.groups.find((g: { role: string }) => g.role === 'core');
+    const docs = body.groups.find((g: { role: string }) => g.role === 'docs');
+    expect(core.files.map((f: { path: string }) => f.path)).toEqual(['src/config.ts']);
+    expect(docs.files.map((f: { path: string }) => f.path)).toEqual(['README.md']);
+
     await app.close();
   });
 
