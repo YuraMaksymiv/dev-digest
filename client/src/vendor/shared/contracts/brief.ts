@@ -21,6 +21,15 @@ export const IntentCategory = z.enum([
 ]);
 export type IntentCategory = z.infer<typeof IntentCategory>;
 
+export const IntentSourceState = z.enum(['fetched', 'unavailable', 'absent']);
+export type IntentSourceState = z.infer<typeof IntentSourceState>;
+
+export const IntentSources = z.object({
+  linked_issue: IntentSourceState,
+  linked_content: IntentSourceState,
+});
+export type IntentSources = z.infer<typeof IntentSources>;
+
 export const Intent = z.object({
   intent: z
     .string()
@@ -41,6 +50,7 @@ export const Intent = z.object({
       '0-1. How much explicit, unambiguous context (description/ticket/spec) grounded this inference, vs. guessing from indirect signals (branch name, commits, file paths). Low context ⇒ low confidence, even when the inferred intent itself seems clear.',
     ),
   category: IntentCategory.describe('The single best-fitting change category.'),
+  sources: IntentSources.nullish(),
 });
 export type Intent = z.infer<typeof Intent>;
 

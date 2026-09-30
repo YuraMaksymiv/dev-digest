@@ -1,10 +1,41 @@
 # Agents — set map
 
-Seven specialized agents for this repo: `researcher` and `planner` feed
-`implementer`, whose output is checked by `test-writer`,
-`architecture-reviewer`, and `plan-verifier`, and finally written up by
-`doc-writer`. This is an index, not a duplicate — the full rule text for
-each agent lives in its own file.
+Nine specialized agents for this repo: `brainstorm` (optional, when a task
+has genuinely multiple viable approaches) and `researcher` feed `planner`,
+which feeds `implementer`, whose output is checked by `test-writer`,
+`architecture-reviewer`, `security-reviewer`, and `plan-verifier`, and
+finally written up by `doc-writer`. This is an index, not a duplicate — the
+full rule text for each agent lives in its own file.
+
+## brainstorm
+
+- **File**: [brainstorm.md](brainstorm.md)
+- **Responsibility**: compares 2-3 candidate approaches to a task, with a
+  complexity/performance/maintainability/risk tradeoff table, BEFORE a
+  Development Plan is written — narrower and earlier than `planner`, which
+  commits to and sequences one plan. Hands off to `planner` once a
+  direction is chosen.
+- **Permissions (tools)**: `Read, Grep, Glob` — read-only, no Write/Edit.
+- **Model**: `sonnet`
+- **Input**: a task with a genuine choice between approaches (build-vs-extend,
+  more than one plausible owning module, more than one plausible data
+  shape). On a task with only one reasonable approach, says so instead of
+  manufacturing options.
+- **Output**: an Option Comparison Report (markdown) — Question, 2-3 named
+  Options (each grounded in existing code with file:line evidence),
+  Tradeoff table, Recommendation with justification, Rejected alternatives,
+  Handoff note.
+- **Explicitly out of scope**: writing the Development Plan itself (`planner`'s
+  job) and writing/editing any code (`implementer`'s job).
+- **Sources its rules are grounded in**:
+  - [../../CLAUDE.md](../../CLAUDE.md) — root repo map, "Do not touch" list
+    (an option requiring a hand-edited migration or reaching into
+    `client/src/vendor/ui/` internals is disqualified outright)
+  - The [onion-architecture](../skills/onion-architecture/SKILL.md) and
+    [frontend-ui-architecture](../skills/frontend-ui-architecture/SKILL.md)
+    skills — a fitness check on each option, not the full review
+  - `planner.md` — the closest analog this agent's structure and rule
+    discipline (file:line evidence requirement) is modeled on
 
 ## planner
 
@@ -123,6 +154,32 @@ each agent lives in its own file.
   - `server/.dependency-cruiser-known-violations.json` — the exact
     file-to-file violation shape the tool emits (no line numbers)
 
+## security-reviewer
+
+- **File**: [security-reviewer.md](security-reviewer.md)
+- **Responsibility**: finds exploitable issues in a diff or module and
+  assigns severity, wrapping the `security` skill (OWASP Top 10:2025,
+  Secret Detection pattern table, confidence-tiered severity) the same way
+  `architecture-reviewer` wraps `onion-architecture`/`frontend-ui-architecture`.
+  Reports findings only; never fixes them.
+- **Permissions (tools)**: `Read, Grep, Glob, Bash` — read-only, no
+  Write/Edit.
+- **Model**: `sonnet`
+- **Input**: a diff, commit range, or module to review — typically one
+  touching auth, input handling, or secrets.
+- **Output**: a Security Review Report (markdown) — Findings table
+  (rule, severity, file:line, exploit scenario, suggested fix), OWASP
+  category tally, commands run, not-checked list.
+- **Sources its rules are grounded in**:
+  - The [security](../skills/security/SKILL.md) skill — OWASP Top 10:2025
+    category table, Secret Detection pattern table, confidence-tiered
+    severity philosophy
+  - `reviewer-core/src/prompt.ts`'s `INJECTION_GUARD` and
+    `docs/agent-prompts/security-reviewer.md`'s "Lethal trifecta" section —
+    this repo's own conservative bar for that specific AI-agent risk
+  - `architecture-reviewer.md` — the closest analog this agent's structure
+    (and its `## Scope note` disambiguation pattern) is modeled on
+
 ## plan-verifier
 
 - **File**: [plan-verifier.md](plan-verifier.md)
@@ -202,6 +259,9 @@ each agent lives in its own file.
 ## Typical flow
 
 ```
+brainstorm (optional, when there's a real choice of approach)
+        │
+        ▼
 researcher (as needed, independent)
         │
         ▼
@@ -213,18 +273,19 @@ researcher (as needed, independent)
         ▼
  test-writer  →  Test Report (adds coverage for the change)
         │
-        ├───────────────────┐
-        ▼                   ▼
-architecture-reviewer   plan-verifier
-        │                   │
-        └─────────┬─────────┘
-                   ▼
+        ├───────────────────┬───────────────────┐
+        ▼                   ▼                   ▼
+architecture-reviewer   plan-verifier    security-reviewer
+        │                   │                   │
+        └───────────────────┼───────────────────┘
+                             ▼
               doc-writer  →  updated docs/ or specs/
                    │
                    ▼
-   (separate gate: pr-self-review, security review — not in these agents)
+        (separate gate: pr-self-review — not in these agents)
 ```
 
-`architecture-reviewer` and `plan-verifier` are independent, read-only checks
-and can run in either order or in parallel once `test-writer` is done;
-`doc-writer` runs last, once the change is verified clean.
+`architecture-reviewer`, `plan-verifier`, and `security-reviewer` are
+independent, read-only checks and can run in any order or in parallel once
+`test-writer` is done; `doc-writer` runs last, once the change is verified
+clean.

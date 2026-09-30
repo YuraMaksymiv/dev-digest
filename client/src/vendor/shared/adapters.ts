@@ -151,6 +151,8 @@ export interface DiffHunk {
   newLines: number;
   /** Lines present in the *new* file covered by this hunk (for grounding). */
   newLineNumbers: number[];
+  /** Raw trimmed `@@ -x,y +a,b @@ trailing-context` line. */
+  header: string;
 }
 
 export interface UnifiedDiff {

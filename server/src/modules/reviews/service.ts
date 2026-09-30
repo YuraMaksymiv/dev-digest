@@ -1,12 +1,15 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
-import { AppError, NotFoundError } from '../../platform/errors.js';
+import type { FindingActionKind, Intent, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
+import { AppError, ExternalServiceError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { buildSmartDiff, reviewToDto } from './helpers.js';
+import { RunLogger } from '../../platform/run-logger.js';
+import { loadDiff } from './diff-loader.js';
+import { loadIntent } from './intent-loader.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -186,5 +189,33 @@ export class ReviewService {
     const rows = await this.repo.reviewsForPull(prId);
     const latest = rows.find(({ review }) => review.kind === 'review');
     return buildSmartDiff(files, latest?.findings ?? []);
+  }
+
+  /** The PR's persisted intent, if it has been derived yet (`null` otherwise —
+   *  not-yet-derived is a normal state, not a 404). */
+  async getIntent(workspaceId: string, prId: string): Promise<Intent | null> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    return (await this.repo.getIntent(prId)) ?? null;
+  }
+
+  /**
+   * Re-derive a PR's intent on demand (lightweight — no full review run).
+   * Reuses `loadDiff` + `loadIntent` directly with an empty-fan-out
+   * `RunLogger` (`runIds: []` — valid: zero SSE subscribers, still mirrors to
+   * `req.log`). Throws `ExternalServiceError` when derivation fails (e.g. no
+   * model/provider configured), unlike the full review's fire-and-forget path.
+   */
+  async deriveIntent(workspaceId: string, prId: string, logger?: Logger): Promise<Intent> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const repo = await this.repo.getRepo(pull.repoId);
+    if (!repo) throw new NotFoundError('Repo not found');
+
+    const runLog = new RunLogger(this.container.runBus, [], logger, { prId: pull.id });
+    const diff = await loadDiff(this.container, this.repo, workspaceId, pull, repo);
+    const intent = await loadIntent(this.container, this.repo, workspaceId, pull, repo, diff, runLog);
+    if (!intent) throw new ExternalServiceError('Failed to derive PR intent');
+    return intent;
   }
 }

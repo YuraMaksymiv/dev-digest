@@ -61,6 +61,7 @@ export async function upsertIntent(db: Db, prId: string, intent: Intent): Promis
     outOfScope: intent.out_of_scope,
     confidence: intent.confidence,
     category: intent.category,
+    sources: intent.sources ?? null,
   };
   await db
     .insert(t.prIntent)
@@ -73,6 +74,7 @@ export async function upsertIntent(db: Db, prId: string, intent: Intent): Promis
         outOfScope: values.outOfScope,
         confidence: values.confidence,
         category: values.category,
+        sources: values.sources,
       },
     });
 }
@@ -86,5 +88,6 @@ export async function getIntent(db: Db, prId: string): Promise<Intent | undefine
     out_of_scope: row.outOfScope,
     confidence: row.confidence,
     category: row.category as Intent['category'],
+    sources: row.sources ?? null,
   };
 }

@@ -7,8 +7,10 @@ import {
   jsonb,
   timestamp,
   doublePrecision,
+  boolean,
   check,
 } from 'drizzle-orm/pg-core';
+import type { IntentSources } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -52,6 +54,7 @@ export const findings = pgTable('findings', {
   trifectaComponents: jsonb('trifecta_components').$type<string[]>(),
   acceptedAt: timestamp('accepted_at', { withTimezone: true }),
   dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+  outOfScope: boolean('out_of_scope'),
 });
 
 export const prIntent = pgTable(
@@ -79,6 +82,7 @@ export const prIntent = pgTable(
         'security',
       ],
     }).notNull(),
+    sources: jsonb('sources').$type<IntentSources>(),
   },
   (t) => ({
     // `text(..., { enum })` is a TypeScript narrowing only — it emits no DDL.

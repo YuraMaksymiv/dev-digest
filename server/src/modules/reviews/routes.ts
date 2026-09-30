@@ -14,6 +14,8 @@ import { ReviewService } from './service.js';
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   GET    /pulls/:id/smart-diff                        → files grouped by role + anchored findings
+ *   GET    /pulls/:id/intent                            → persisted intent (null if not yet derived)
+ *   POST   /pulls/:id/intent                            → re-derive intent now (lightweight, no review run)
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
@@ -137,6 +139,25 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(container, req);
     return service.getSmartDiff(workspaceId, req.params.id);
   });
+
+  // ---- Intent: persisted intent (null before it's ever been derived) ------
+  app.get('/pulls/:id/intent', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    const intent = await service.getIntent(workspaceId, req.params.id);
+    return intent ? { ...intent, pr_id: req.params.id } : null;
+  });
+
+  // ---- Intent: re-derive now (lightweight — no full review run) -----------
+  // Same rate limit as POST /pulls/:id/review: it makes an LLM call.
+  app.post(
+    '/pulls/:id/intent',
+    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      const intent = await service.deriveIntent(workspaceId, req.params.id, req.log);
+      return { ...intent, pr_id: req.params.id };
+    },
+  );
 
   // ---- Delete a whole review run (one agent's pass) + its findings --------
   app.delete('/reviews/:id', { schema: { params: IdParams } }, async (req) => {

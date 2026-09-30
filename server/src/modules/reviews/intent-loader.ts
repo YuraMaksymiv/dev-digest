@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Intent, UnifiedDiff } from '@devdigest/shared';
+import type { Intent, IntentSourceState, IntentSources, UnifiedDiff } from '@devdigest/shared';
 import { Intent as IntentSchema } from '@devdigest/shared';
 import type { ReviewRepository, PullRow, RepoRow } from './repository.js';
 import type { RunLogger } from '../../platform/run-logger.js';
@@ -32,13 +32,30 @@ export async function loadIntent(
   const start = Date.now();
   let runId: string | undefined;
   try {
-    const filePaths = diff.files.map((f) => f.path);
+    const files = diff.files.map((f) => ({
+      path: f.path,
+      hunkHeaders: f.hunks.map((h) => h.header).filter(Boolean).slice(0, 15),
+    }));
 
     const commits = await repo.getPrCommits(pull.id).catch(() => []);
     const commitMessages = commits.map((c) => c.message);
 
     const linkedIssue = await resolveLinkedIssueSignal(container, repoRow, pull);
     const linkedContent = await resolveLinkedContentSignal(container, pull);
+
+    // Server-known fetch state — the model is never asked about this; it can't
+    // know whether a fetch succeeded, only the server does.
+    const sources: IntentSources = {
+      linked_issue: linkedIssue.state,
+      linked_content: linkedContent.state,
+    };
+    const missingContext: string[] = [];
+    if (linkedIssue.state === 'unavailable') {
+      missingContext.push('A linked issue reference was found but the issue could not be fetched.');
+    }
+    if (linkedContent.state === 'unavailable') {
+      missingContext.push('A linked URL was found in the PR body but its content could not be fetched.');
+    }
 
     const choice = await resolveFeatureModel(container, workspaceId, 'review_intent');
     const llm = await container.llm(choice.provider);
@@ -51,9 +68,9 @@ export async function loadIntent(
       model: choice.model,
     });
 
-    const res = await llm.completeStructured<Intent>({
+    const res = await llm.completeStructured<Omit<Intent, 'sources'>>({
       model: choice.model,
-      schema: IntentSchema,
+      schema: IntentSchema.omit({ sources: true }),
       schemaName: INTENT_SCHEMA_NAME,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -63,16 +80,20 @@ export async function loadIntent(
             title: pull.title,
             description: pull.body,
             branch: pull.branch,
-            filePaths,
+            files,
             commitMessages,
-            linkedIssue,
-            linkedContent,
+            linkedIssue: linkedIssue.state === 'fetched' ? linkedIssue.issue : undefined,
+            linkedContent: linkedContent.state === 'fetched' ? linkedContent.content : undefined,
+            missingContext,
           }),
         },
       ],
     });
 
-    await repo.upsertIntent(pull.id, res.data);
+    // Merge the server-computed `sources` in AFTER the call — never part of the
+    // LLM-facing schema (decision A0.1).
+    const intent: Intent = { ...res.data, sources };
+    await repo.upsertIntent(pull.id, intent);
 
     await repo.completeAgentRun(runId, {
       status: 'done',
@@ -87,9 +108,9 @@ export async function loadIntent(
     });
 
     runLog.info(
-      `intent: derived (${choice.provider}/${choice.model}) — category=${res.data.category}, confidence=${res.data.confidence.toFixed(2)}`,
+      `intent: derived (${choice.provider}/${choice.model}) — category=${intent.category}, confidence=${intent.confidence.toFixed(2)}`,
     );
-    return res.data;
+    return intent;
   } catch (err) {
     const msg = (err as Error).message;
     runLog.info(`intent: skipped — ${msg}`);
@@ -110,34 +131,50 @@ export async function loadIntent(
   }
 }
 
-/** Best-effort linked-issue resolution via the generalized body/title/branch regex. */
-async function resolveLinkedIssueSignal(
+/**
+ * Best-effort linked-issue resolution via the generalized body/title/branch
+ * regex. Distinguishes "nothing was linked" (`absent`) from "a reference was
+ * found but couldn't be fetched" (`unavailable`) — `null`/`undefined` alone
+ * couldn't tell those apart.
+ */
+export async function resolveLinkedIssueSignal(
   container: Container,
   repoRow: RepoRow,
   pull: PullRow,
-): Promise<{ number: number; title: string; body: string | null } | null> {
+): Promise<
+  | { state: Extract<IntentSourceState, 'fetched'>; issue: { number: number; title: string; body: string | null } }
+  | { state: Extract<IntentSourceState, 'unavailable' | 'absent'> }
+> {
+  const text = [pull.body ?? '', pull.title, pull.branch].join('\n');
+  const m = text.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
+  if (!m?.[1]) return { state: 'absent' };
   try {
-    const text = [pull.body ?? '', pull.title, pull.branch].join('\n');
-    const m = text.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
-    if (!m?.[1]) return null;
     const client = await container.github();
     const issue = await client.getIssue({ owner: repoRow.owner, name: repoRow.name }, Number(m[1]));
-    return { number: issue.number, title: issue.title, body: issue.body ?? null };
+    return { state: 'fetched', issue: { number: issue.number, title: issue.title, body: issue.body ?? null } };
   } catch {
-    return null;
+    return { state: 'unavailable' };
   }
 }
 
-/** Best-effort generic URL fetch for a non-issue link found in the PR body. */
-async function resolveLinkedContentSignal(
+/**
+ * Best-effort generic URL fetch for a non-issue link found in the PR body.
+ * Same three-state contract as `resolveLinkedIssueSignal`.
+ */
+export async function resolveLinkedContentSignal(
   container: Container,
   pull: PullRow,
-): Promise<string | undefined> {
+): Promise<
+  | { state: Extract<IntentSourceState, 'fetched'>; content: string }
+  | { state: Extract<IntentSourceState, 'unavailable' | 'absent'> }
+> {
+  const url = pull.body?.match(URL_RE)?.[0];
+  if (!url) return { state: 'absent' };
   try {
-    const url = pull.body?.match(URL_RE)?.[0];
-    if (!url) return undefined;
-    return await container.linkFetch(url);
+    const content = await container.linkFetch(url);
+    if (content === undefined) return { state: 'unavailable' };
+    return { state: 'fetched', content };
   } catch {
-    return undefined;
+    return { state: 'unavailable' };
   }
 }

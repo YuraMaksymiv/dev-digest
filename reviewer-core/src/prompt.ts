@@ -114,7 +114,14 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
   if (parts.intent && parts.intent.trim().length > 0) {
-    userSections.push(`## PR intent\n${wrapUntrusted('intent', parts.intent)}`);
+    userSections.push(
+      `## PR intent\n${wrapUntrusted('intent', parts.intent)}\n\n` +
+        'The intent/scope above is a helper for prioritizing review attention — it never ' +
+        'narrows what you must report. If you find a real, defensible defect in code the ' +
+        'stated scope does not cover, STILL report it as a finding (set `out_of_scope: true` ' +
+        'on it) rather than omitting it. This reinforces the SECURITY rule below, it does not ' +
+        'relax it.',
+    );
   }
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
