@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Intent } from '@devdigest/shared';
+import type { Intent, PrRef } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
@@ -16,6 +16,45 @@ export async function getPull(
     .from(t.pullRequests)
     .where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, prId)));
   return row;
+}
+
+/**
+ * Resolve a PR from `owner/name` + number within the workspace. `repo_missing`
+ * vs `pr_missing` lets the caller say which import is absent.
+ */
+export async function findPullByRepoAndNumber(
+  db: Db,
+  workspaceId: string,
+  fullName: string,
+  number: number,
+): Promise<{ found: PrRef } | { missing: 'repo' | 'pr' }> {
+  const [repo] = await db
+    .select()
+    .from(t.repos)
+    .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.fullName, fullName)));
+  if (!repo) return { missing: 'repo' };
+  const [pr] = await db
+    .select()
+    .from(t.pullRequests)
+    .where(
+      and(
+        eq(t.pullRequests.workspaceId, workspaceId),
+        eq(t.pullRequests.repoId, repo.id),
+        eq(t.pullRequests.number, number),
+      ),
+    );
+  if (!pr) return { missing: 'pr' };
+  return {
+    found: {
+      pr_id: pr.id,
+      repo_id: repo.id,
+      repo: repo.fullName,
+      number: pr.number,
+      title: pr.title,
+      status: pr.status,
+      head_sha: pr.headSha,
+    },
+  };
 }
 
 export async function getRepo(

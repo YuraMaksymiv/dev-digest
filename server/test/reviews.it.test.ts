@@ -467,7 +467,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
   it('POST /pulls/:id/intent: 502 (not a silent 200) when the model/provider is unavailable', async () => {
     // Default appWith's openrouter mock has no fixture — completeStructured's
     // {} fixture fails Intent schema validation, loadIntent returns undefined.
-    const app = appWith(REVIEW_FIXTURE);
+    const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const res = await app.inject({ method: 'POST', url: `/pulls/${pr.id}/intent` });
     expect(res.statusCode).toBe(502);

@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, Intent, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
+import type { FindingActionKind, Intent, PrRef, RunDetail, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
 import { AppError, ExternalServiceError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -72,6 +72,25 @@ export class ReviewService {
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
   async listRuns(workspaceId: string, prId: string) {
     return this.repo.listRunsForPull(workspaceId, prId);
+  }
+
+  /** One run's state (read-only). 404 for unknown / other-workspace / non-agent runs. */
+  async getRunDetail(workspaceId: string, runId: string): Promise<RunDetail> {
+    const run = await this.repo.getRunDetail(workspaceId, runId);
+    if (!run) throw new NotFoundError('Run not found');
+    return run;
+  }
+
+  /** Resolve an already-imported PR by `owner/name` + number. Never calls GitHub. */
+  async lookupPull(workspaceId: string, fullName: string, number: number): Promise<PrRef> {
+    const res = await this.repo.findPullByRepoAndNumber(workspaceId, fullName, number);
+    if ('found' in res) return res.found;
+    const hint = 'Import it in the DevDigest UI first, then retry.';
+    throw new NotFoundError(
+      res.missing === 'repo'
+        ? `Repo ${fullName} is not imported. ${hint}`
+        : `PR #${number} is not imported for ${fullName}. ${hint}`,
+    );
   }
 
   /** Delete one run from the history (+ its trace). */

@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { RunSummary, RunTrace } from '@devdigest/shared';
+import type { RunDetail, RunSummary, RunTrace } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -77,6 +77,73 @@ export async function listRunsForPull(
     score: run.score,
     blockers: run.blockers,
   }));
+}
+
+const RUN_STATUSES = ['running', 'done', 'failed', 'cancelled'] as const;
+
+/**
+ * One agent run with its agent/PR/repo context, workspace-scoped. Returns
+ * undefined for unknown ids, other workspaces and non-agent rows
+ * (`agent_id IS NULL`, e.g. the intent classifier's observability row).
+ * `review_id` comes from a separate query: `reviews.run_id` has no FK, and a
+ * run can own both a summary and a review row.
+ */
+export async function getRunDetail(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<RunDetail | undefined> {
+  const [row] = await db
+    .select({
+      run: t.agentRuns,
+      agentName: t.agents.name,
+      prId: t.pullRequests.id,
+      prNumber: t.pullRequests.number,
+      repoFullName: t.repos.fullName,
+    })
+    .from(t.agentRuns)
+    .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .innerJoin(t.pullRequests, eq(t.pullRequests.id, t.agentRuns.prId))
+    .innerJoin(t.repos, eq(t.repos.id, t.pullRequests.repoId))
+    .where(
+      and(
+        eq(t.agentRuns.id, runId),
+        eq(t.agentRuns.workspaceId, workspaceId),
+        isNotNull(t.agentRuns.agentId),
+      ),
+    );
+  if (!row || !row.run.agentId) return undefined;
+
+  const [review] = await db
+    .select({ id: t.reviews.id })
+    .from(t.reviews)
+    .where(
+      and(
+        eq(t.reviews.runId, runId),
+        eq(t.reviews.workspaceId, workspaceId),
+        eq(t.reviews.kind, 'review'),
+      ),
+    )
+    .limit(1);
+
+  const { run } = row;
+  const status = RUN_STATUSES.find((s) => s === run.status) ?? 'running';
+  return {
+    run_id: run.id,
+    status,
+    agent_id: run.agentId!,
+    agent_name: row.agentName ?? null,
+    pr_id: row.prId,
+    pr_number: row.prNumber,
+    repo: row.repoFullName,
+    ran_at: run.ranAt ? run.ranAt.toISOString() : null,
+    duration_ms: run.durationMs,
+    cost_usd: run.costUsd,
+    findings_count: run.findingsCount,
+    score: run.score,
+    error: run.error,
+    review_id: review?.id ?? null,
+  };
 }
 
 /**

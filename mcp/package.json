@@ -1,0 +1,23 @@
+{
+  "name": "@devdigest/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "arch": "depcruise src --config .dependency-cruiser.cjs --output-type err"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.2.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "dependency-cruiser": "^18.4.0",
+    "tsx": "^4.23.15",
+    "typescript": "~5.7.3",
+    "vitest": "^5.0.2"
+  }
+}
