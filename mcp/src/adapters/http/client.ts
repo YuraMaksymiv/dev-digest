@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import type { AgentInfo, Convention, PrRef, RepoRef, Review, RunDetail, StartedRun } from '../../domain/types.js';
+import type { AgentInfo, BlastRadiusPayload, Convention, PrRef, RepoRef, Review, RunDetail, StartedRun } from '../../domain/types.js';
 import { ApiError, type DevDigestApi, type Logger, type WaitForRunOptions } from '../../ports.js';
 import { mapHttpError, mapNetworkError } from './errors.js';
 import {
   AgentsResponse,
+  BlastRadiusResponse,
   ConventionsResponse,
   ErrorBody,
   PrRefResponse,
@@ -101,6 +102,10 @@ export class HttpDevDigestApi implements DevDigestApi {
     return rows
       .filter((c) => c.status === 'accepted')
       .map((c) => ({ category: c.category, rule: c.rule, confidence: c.confidence }));
+  }
+
+  async getBlastRadius(prId: string): Promise<BlastRadiusPayload> {
+    return this.get(`/pulls/${encodeURIComponent(prId)}/blast`, BlastRadiusResponse);
   }
 
   async waitForRun(runId: string, { signal, onEvent }: WaitForRunOptions): Promise<'ended' | 'aborted'> {

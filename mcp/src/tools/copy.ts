@@ -75,11 +75,11 @@ export const GET_CONVENTIONS = {
 
 export const GET_BLAST_RADIUS = {
   name: 'get_blast_radius',
-  description: 'NOT IMPLEMENTED YET — always returns an error. Do not call; use get_findings instead.',
+  description:
+    'Get the blast radius of an imported PR as JSON: changed symbols, their downstream callers (file:line), and affected endpoints/crons. If `degraded` is set, `reason` says why the data is best-effort or missing.',
   inputSchema: z.object({
     repo: repoField,
     pr_number: z.number().int().positive(),
   }),
   annotations: READ_ONLY,
-  errorText: 'get_blast_radius is not implemented yet; no data exists. Do not retry — use get_findings instead.',
 } as const;

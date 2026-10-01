@@ -12,7 +12,7 @@ const api = new HttpDevDigestApi({
   logger,
 });
 
-const handle = serveStdio(() => createServer({ api, logger, enableStubs: config.enableStubs }), {
+const handle = serveStdio(() => createServer({ api, logger }), {
   onerror: (err) => logger.error('transport error', { error: err.message }),
 });
 
@@ -23,4 +23,4 @@ const shutdown = (signal: string) => {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-logger.info('devdigest MCP server ready', { apiUrl: config.apiUrl, stubs: config.enableStubs });
+logger.info('devdigest MCP server ready', { apiUrl: config.apiUrl });

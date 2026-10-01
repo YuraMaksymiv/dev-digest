@@ -71,6 +71,9 @@ export interface ProgressEvent {
   message: string;
 }
 
+/** The route's BlastRadius JSON, kept as received so the tool can relay it verbatim. */
+export type BlastRadiusPayload = Record<string, unknown>;
+
 export interface ToolOutput {
   text: string;
   isError: boolean;

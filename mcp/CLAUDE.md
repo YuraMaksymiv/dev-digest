@@ -20,7 +20,7 @@ no DB, no GitHub, no LLM of its own. Tool reference: [README.md](README.md).
 
 - `src/tools/` — transport: parse args → service → text result / `isError`.
   `copy.ts` holds EVERY model-facing string (descriptions, instructions,
-  schemas, annotations, stub error) — pinned by `tools-list.test.ts`.
+  schemas, annotations) — pinned by `tools-list.test.ts`.
 - `src/services/` — orchestration (resolve agent/repo/PR, run + wait, pagination).
 - `src/domain/` — pure formatting, severity sort, cursor encode/decode.
 - `src/ports.ts` — `DevDigestApi` interface, `ApiError`, `Logger`.

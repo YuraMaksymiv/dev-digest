@@ -72,6 +72,14 @@ export const ConventionsResponse = z.array(
   }),
 );
 
+export const BlastRadiusResponse = z.looseObject({
+  changed_symbols: z.array(z.looseObject({})),
+  downstream: z.array(z.looseObject({})),
+  summary: z.string(),
+  degraded: z.boolean().optional(),
+  reason: z.string().optional(),
+});
+
 export const SseEventData = z.looseObject({ msg: z.string().optional() });
 
 export const ErrorBody = z.looseObject({

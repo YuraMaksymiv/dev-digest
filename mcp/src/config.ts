@@ -1,6 +1,5 @@
 export interface Config {
   apiUrl: string;
-  enableStubs: boolean;
   requestTimeoutMs: number;
   logLevel: 'error' | 'warn' | 'info' | 'debug';
 }
@@ -12,7 +11,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const level = LEVELS.find((l) => l === env.MCP_LOG_LEVEL);
   return {
     apiUrl: env.DEVDIGEST_API_URL?.trim() || 'http://127.0.0.1:3001',
-    enableStubs: env.MCP_ENABLE_STUBS === '1',
     requestTimeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 15_000,
     logLevel: level ?? 'info',
   };

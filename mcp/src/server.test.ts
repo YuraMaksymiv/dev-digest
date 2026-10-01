@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 async function start(api: FakeApi) {
-  session = await connectInMemory(createServer({ api, logger, enableStubs: false }));
+  session = await connectInMemory(createServer({ api, logger }));
   return session;
 }
 const call = (s: RpcSession, name: string, args: Record<string, unknown>, meta?: Record<string, unknown>) =>
@@ -34,6 +34,15 @@ describe('tool transport', () => {
     const res = await call(s, 'run_agent_on_pr', { repo: 'acme/widgets', pr_number: 7, agent: 'General Reviewer' });
     expect(res.isError).toBeUndefined();
     expect(res.content[0].text).toContain('status=done');
+  });
+
+  it('get_blast_radius returns the route JSON framed as untrusted data', async () => {
+    const api = new FakeApi();
+    const s = await start(api);
+    const res = await call(s, 'get_blast_radius', { repo: 'acme/widgets', pr_number: 7 });
+    expect(res.isError).toBeUndefined();
+    expect(res.content[0].text).toContain('<untrusted_review_output>');
+    expect(res.content[0].text).toContain(JSON.stringify(api.blast));
   });
 
   it('returns the dev.sh hint as isError when the API is down', async () => {

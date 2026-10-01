@@ -133,3 +133,21 @@ describe('HttpDevDigestApi.waitForRun', () => {
     expect(err?.kind).toBe('not_found');
   });
 });
+
+describe('HttpDevDigestApi.getBlastRadius', () => {
+  it('GETs /pulls/:id/blast and keeps the payload as received', async () => {
+    const payload = { changed_symbols: [], downstream: [], summary: 's', degraded: true, reason: 'no_data', extra: 1 };
+    let url = '';
+    const got = await api(async (u) => {
+      url = String(u);
+      return json(payload);
+    }).getBlastRadius('pr-1');
+    expect(url).toBe(`${BASE}/pulls/pr-1/blast`);
+    expect(got).toEqual(payload);
+  });
+
+  it('rejects a malformed body as invalid_response', async () => {
+    const err = await failWith(() => api(async () => json({ nope: true })).getBlastRadius('pr-1'));
+    expect(err?.kind).toBe('invalid_response');
+  });
+});

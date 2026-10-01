@@ -17,7 +17,8 @@ const DESCRIPTIONS: Record<string, string> = {
     'Get the status and findings of a review run by run_id. Returns status=running until done; results are paginated (use cursor) and response_format=detailed adds rationale and fix suggestions.',
   get_conventions:
     'Get the accepted coding conventions DevDigest applies when reviewing a repo, one line per rule. Use `section` to narrow the output.',
-  get_blast_radius: 'NOT IMPLEMENTED YET — always returns an error. Do not call; use get_findings instead.',
+  get_blast_radius:
+    'Get the blast radius of an imported PR as JSON: changed symbols, their downstream callers (file:line), and affected endpoints/crons. If `degraded` is set, `reason` says why the data is best-effort or missing.',
 };
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -38,8 +39,8 @@ afterEach(async () => {
   session = undefined;
 });
 
-async function listTools(enableStubs: boolean) {
-  session = await connectInMemory(createServer({ api: new FakeApi(), logger: silent, enableStubs }));
+async function listTools() {
+  session = await connectInMemory(createServer({ api: new FakeApi(), logger: silent }));
   const result = await session.request('tools/list');
   const init = await session.request('initialize', {
     protocolVersion: '2025-06-18',
@@ -53,19 +54,8 @@ const estimateTokens = (tools: unknown, instructions: string) =>
   Math.ceil((JSON.stringify(tools).length + instructions.length) / 4);
 
 describe('tools/list', () => {
-  it('registers the four tools in fixed order with exact copy and annotations', async () => {
-    const { tools, instructions } = await listTools(false);
-
-    expect(tools.map((t) => t.name)).toEqual(['list_agents', 'run_agent_on_pr', 'get_findings', 'get_conventions']);
-    expect(instructions).toBe(INSTRUCTIONS);
-    for (const t of tools) {
-      expect(t.description).toBe(DESCRIPTIONS[t.name]);
-      expect(t.annotations).toEqual(ANNOTATIONS[t.name]);
-    }
-  });
-
-  it('adds get_blast_radius last, with exact copy, only when stubs are enabled', async () => {
-    const { tools } = await listTools(true);
+  it('registers the five tools in fixed order with exact copy and annotations', async () => {
+    const { tools, instructions } = await listTools();
 
     expect(tools.map((t) => t.name)).toEqual([
       'list_agents',
@@ -74,19 +64,15 @@ describe('tools/list', () => {
       'get_conventions',
       'get_blast_radius',
     ]);
-    const stub = tools[4]!;
-    expect(stub.description).toBe(DESCRIPTIONS.get_blast_radius);
-    expect(stub.annotations).toEqual(READ_ONLY);
-
-    const res = await session!.request('tools/call', { name: 'get_blast_radius', arguments: { repo: 'a/b', pr_number: 1 } });
-    expect(res.isError).toBe(true);
-    expect(res.content[0].text).toBe(
-      'get_blast_radius is not implemented yet; no data exists. Do not retry — use get_findings instead.',
-    );
+    expect(instructions).toBe(INSTRUCTIONS);
+    for (const t of tools) {
+      expect(t.description).toBe(DESCRIPTIONS[t.name]);
+      expect(t.annotations).toEqual(ANNOTATIONS[t.name]);
+    }
   });
 
   it('exposes the exact flat input schemas', async () => {
-    const { tools } = await listTools(true);
+    const { tools } = await listTools();
     const props = (name: string) => tools.find((t) => t.name === name)!.inputSchema.properties;
     const required = (name: string) => tools.find((t) => t.name === name)!.inputSchema.required ?? [];
 
@@ -117,7 +103,7 @@ describe('tools/list', () => {
   });
 
   it('has no outputSchema, $defs or $ref', async () => {
-    const { tools } = await listTools(true);
+    const { tools } = await listTools();
     const json = JSON.stringify(tools);
 
     expect(tools.every((t) => t.outputSchema === undefined)).toBe(true);
@@ -125,8 +111,8 @@ describe('tools/list', () => {
     expect(json).not.toContain('$ref');
   });
 
-  it.each([false, true])('stays within the 1500 token budget (stubs=%s)', async (stubs) => {
-    const { tools, instructions } = await listTools(stubs);
+  it('stays within the 1500 token budget', async () => {
+    const { tools, instructions } = await listTools();
     const tokens = estimateTokens(tools, instructions);
 
     expect(tokens).toBeLessThanOrEqual(1500);

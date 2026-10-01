@@ -1,0 +1,96 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    background: "var(--bg-elevated)",
+    padding: 18,
+  } satisfies CSSProperties,
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  } satisfies CSSProperties,
+  headerIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  headerLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  stats: {
+    display: "flex",
+    gap: 24,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  } satisfies CSSProperties,
+  statValue: {
+    fontSize: 20,
+    fontWeight: 700,
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  statLabel: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    marginLeft: 6,
+  } satisfies CSSProperties,
+  summary: {
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    margin: "0 0 14px",
+  } satisfies CSSProperties,
+  notice: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: "10px 12px",
+    marginBottom: 14,
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-hover)",
+    fontSize: 13,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  noticeBody: { flex: 1 } satisfies CSSProperties,
+  noticeTitle: {
+    fontWeight: 600,
+    color: "var(--text-primary)",
+    marginBottom: 2,
+  } satisfies CSSProperties,
+  group: {
+    borderTop: "1px solid var(--border)",
+    padding: "12px 0",
+  } satisfies CSSProperties,
+  groupHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 6,
+  } satisfies CSSProperties,
+  symbol: { fontSize: 13, fontWeight: 600, color: "var(--text-primary)" } satisfies CSSProperties,
+  callerList: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  } satisfies CSSProperties,
+  callerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  chips: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    marginTop: 8,
+  } satisfies CSSProperties,
+} as const;

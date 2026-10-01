@@ -1,5 +1,6 @@
 import type {
   AgentInfo,
+  BlastRadiusPayload,
   Convention,
   PrRef,
   ProgressEvent,
@@ -44,6 +45,7 @@ export interface DevDigestApi {
   listReviews(prId: string): Promise<Review[]>;
   /** Accepted conventions only. */
   listConventions(repoId: string): Promise<Convention[]>;
+  getBlastRadius(prId: string): Promise<BlastRadiusPayload>;
   /**
    * Resolves 'ended' when the run's event stream completes (the run is
    * finished) and 'aborted' when `signal` fires first. Never cancels the run.

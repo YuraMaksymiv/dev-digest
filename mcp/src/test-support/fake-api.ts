@@ -1,5 +1,6 @@
 import type {
   AgentInfo,
+  BlastRadiusPayload,
   Convention,
   PrRef,
   RepoRef,
@@ -48,6 +49,8 @@ export class FakeApi implements DevDigestApi {
   run: RunDetail = runDetail();
   reviews: Review[] = [];
   conventions: Convention[] = [];
+  blast: BlastRadiusPayload = { changed_symbols: [], downstream: [], summary: 'No changed symbols were found in this PR.' };
+  blastError: Error | undefined;
   wait: WaitBehavior = async () => 'ended';
   lookupError: Error | undefined;
   runError: Error | undefined;
@@ -81,6 +84,11 @@ export class FakeApi implements DevDigestApi {
   async listConventions(repoId: string) {
     this.calls.push(`listConventions ${repoId}`);
     return this.conventions;
+  }
+  async getBlastRadius(prId: string) {
+    this.calls.push(`getBlastRadius ${prId}`);
+    if (this.blastError) throw this.blastError;
+    return this.blast;
   }
   waitForRun(runId: string, options: WaitForRunOptions) {
     this.calls.push(`waitForRun ${runId}`);
