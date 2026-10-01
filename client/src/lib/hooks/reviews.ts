@@ -8,11 +8,13 @@ import { api, API_BASE } from "../api";
 import { notify } from "../toast";
 import type {
   FindingActionKind,
+  PrIntentRecord,
   PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
   RunEvent,
   RunSummary,
+  SmartDiffResponse,
 } from "@devdigest/shared";
 
 // ---- Active (in-flight) runs — server-side source of truth ----
@@ -53,6 +55,37 @@ export function usePrReviews(prId: string | null | undefined) {
     queryKey: ["reviews", prId],
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
     enabled: !!prId,
+  });
+}
+
+/** This PR's changed files grouped by role, with the latest review's findings
+   anchored per file (Smart Diff — the "Files changed" tab's grouping). */
+export function useSmartDiff(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["smart-diff", prId],
+    queryFn: () => api.get<SmartDiffResponse>(`/pulls/${prId}/smart-diff`),
+    enabled: !!prId,
+  });
+}
+
+/** This PR's persisted intent (`null` before it's ever been derived — a
+   normal state, not an error). */
+export function usePrIntent(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["pr-intent", prId],
+    queryFn: () => api.get<PrIntentRecord | null>(`/pulls/${prId}/intent`),
+    enabled: !!prId,
+  });
+}
+
+/** Re-derive a PR's intent now (lightweight — no full review run). */
+export function useRederiveIntent(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<PrIntentRecord>(`/pulls/${prId}/intent`),
+    onSuccess: (data) => {
+      qc.setQueryData(["pr-intent", prId], data);
+    },
   });
 }
 

@@ -1,9 +1,13 @@
 /**
  * Pure helpers for the review service (side-effect free; operate purely on
- * their arguments — no DB / network / `this`).
+ * their arguments — no DB / network / `this`). Per this module's arch rule
+ * (`helpers-have-no-io`), this file may not import ANY Node core module
+ * (crypto included) — where a helper needs one (e.g. hashing), the caller
+ * injects it as a function instead.
  */
-import type { Finding } from '@devdigest/shared';
+import type { Finding, Intent, SmartDiff, SmartDiffFile, SmartDiffGroup, SmartDiffRole } from '@devdigest/shared';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
+import { SMART_DIFF_BIG_PR_LINES, SMART_DIFF_CLASSIFY_RULES, SMART_DIFF_GROUP_ORDER } from './constants.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
 // shared with the CI runner); re-exported here for backward-compatible imports.
@@ -46,6 +50,7 @@ export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
     kind: (row.kind as Finding['kind']) ?? 'finding',
     trifecta_components: (row.trifectaComponents as Finding['trifecta_components']) ?? null,
     evidence: null,
+    out_of_scope: row.outOfScope ?? null,
     review_id: row.reviewId,
     accepted_at: row.acceptedAt?.toISOString() ?? null,
     dismissed_at: row.dismissedAt?.toISOString() ?? null,
@@ -102,4 +107,137 @@ export function taskLine(pull: PullRow): string {
  */
 export function toSkillPromptBlock(skill: { name: string; body: string }): string {
   return `### ${skill.name}\n${skill.body.trim()}`;
+}
+
+/**
+ * Render a derived `Intent` as a plain string for the prompt's `## PR intent`
+ * slot — keeps `reviewer-core` free of any `Intent`-typed import; the engine
+ * only ever sees an already-rendered string, identically to `prDescription`.
+ */
+export interface PromptSectionMeta {
+  /** Prompt heading this maps to, e.g. `'pr-description'`, `'diff'`. */
+  section: string;
+  /** Where the content came from, e.g. `'pr-description'`, `'repo-map'`, `'agent-config'`. */
+  source: string;
+  chars: number;
+  tokens: number;
+  /**
+   * One-way SHA-256 fingerprint (first 8 hex chars) — NOT reversible to the
+   * original text. Only present when verbose prompt-assembly logging is on
+   * (local dev only); lets a developer confirm two runs assembled the same
+   * section without ever exposing its content.
+   */
+  hash?: string;
+}
+
+/**
+ * Safe, content-free metadata for a prompt-assembly log line: section name,
+ * source, and size (chars + estimated tokens) per non-empty section — NEVER
+ * the section's actual text. Empty/absent sections are omitted rather than
+ * logged as a zero-length row.
+ *
+ * `hashSection`, when supplied, adds a one-way content fingerprint per
+ * section (still not the content) — callers must only supply it when
+ * `AppConfig.promptLogVerbose` is on (already restricted to non-production
+ * environments). Injected rather than imported here: this file may not touch
+ * any Node core module, hashing included (`helpers-have-no-io`).
+ */
+export function summarizePromptSections(
+  sections: { section: string; source: string; content: string | undefined }[],
+  countTokens: (text: string) => number,
+  hashSection?: (text: string) => string,
+): PromptSectionMeta[] {
+  return sections
+    .filter((s) => !!s.content && s.content.trim().length > 0)
+    .map((s) => {
+      const content = s.content as string;
+      return {
+        section: s.section,
+        source: s.source,
+        chars: content.length,
+        tokens: countTokens(content),
+        ...(hashSection ? { hash: hashSection(content) } : {}),
+      };
+    });
+}
+
+export function renderIntentForPrompt(intent: Intent): string {
+  const lines = [
+    `Category: ${intent.category} (confidence ${intent.confidence.toFixed(2)})`,
+    '',
+    intent.intent,
+  ];
+  if (intent.in_scope.length > 0) {
+    lines.push('', 'In scope:', ...intent.in_scope.map((s) => `- ${s}`));
+  }
+  if (intent.out_of_scope.length > 0) {
+    lines.push('', 'Out of scope:', ...intent.out_of_scope.map((s) => `- ${s}`));
+  }
+  return lines.join('\n');
+}
+
+// ---- Smart Diff (Files-changed grouping) -----------------------------------
+
+/** Classify one file path into a Smart Diff role. First rule to match wins;
+ *  a path matching none of `SMART_DIFF_CLASSIFY_RULES` falls back to `core`. */
+export function classifyFile(path: string): SmartDiffRole {
+  for (const rule of SMART_DIFF_CLASSIFY_RULES) {
+    if (rule.test(path)) return rule.role;
+  }
+  return 'core';
+}
+
+/** The subset of a `pr_files` row Smart Diff needs — kept structural (not a
+ *  `db/rows.js` import) so this file stays free of any DB-layer dependency. */
+export interface SmartDiffInputFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+/**
+ * Build the Smart Diff view of a PR: each changed file classified into a role,
+ * grouped in `SMART_DIFF_GROUP_ORDER` (always all 5 groups, even empty), each
+ * file's finding lines sorted/deduped. `pseudocode_summary` stays `null` —
+ * reserved for a future lesson.
+ */
+export function buildSmartDiff(files: SmartDiffInputFile[], findings: FindingRow[]): SmartDiff {
+  const findingLinesByFile = new Map<string, number[]>();
+  for (const f of findings) {
+    const list = findingLinesByFile.get(f.file) ?? [];
+    list.push(f.startLine);
+    findingLinesByFile.set(f.file, list);
+  }
+
+  const filesByRole = new Map<SmartDiffRole, SmartDiffFile[]>(
+    SMART_DIFF_GROUP_ORDER.map((role) => [role, []]),
+  );
+
+  let totalLines = 0;
+  for (const file of files) {
+    const role = classifyFile(file.path);
+    const lines = [...new Set(findingLinesByFile.get(file.path) ?? [])].sort((a, b) => a - b);
+    filesByRole.get(role)!.push({
+      path: file.path,
+      pseudocode_summary: null,
+      additions: file.additions,
+      deletions: file.deletions,
+      finding_lines: lines,
+    });
+    totalLines += file.additions + file.deletions;
+  }
+
+  const groups: SmartDiffGroup[] = SMART_DIFF_GROUP_ORDER.map((role) => ({
+    role,
+    files: filesByRole.get(role)!,
+  }));
+
+  return {
+    groups,
+    split_suggestion: {
+      too_big: totalLines >= SMART_DIFF_BIG_PR_LINES,
+      total_lines: totalLines,
+      proposed_splits: [],
+    },
+  };
 }

@@ -10,6 +10,7 @@ import {
   Icon,
   SeverityBadge,
   CategoryTag,
+  Badge,
   MonoLink,
   ConfidenceNum,
   Button,
@@ -20,7 +21,7 @@ import {
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
 import { lineLabel } from "./helpers";
-import { githubBlobUrl } from "../../../../../../../lib/github-urls";
+import { githubBlobUrl } from "@/lib/github-urls";
 import { s } from "./styles";
 
 export function FindingCard({
@@ -61,6 +62,11 @@ export function FindingCard({
           <div style={s.titleRow}>
             <span style={s.title(muted, dismissed)}>{f.title}</span>
             <CategoryTag category={f.category as Category} />
+            {f.out_of_scope && (
+              <Badge color="var(--warn)" bg="var(--warn-bg)" icon="AlertTriangle">
+                {t("finding.outOfScope")}
+              </Badge>
+            )}
             {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
             {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
           </div>

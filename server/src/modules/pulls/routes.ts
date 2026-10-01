@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type {
   PrMeta,
   PrDetail,
@@ -191,6 +191,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
             inArray(t.agentRuns.prId, prIds),
             eq(t.agentRuns.workspaceId, workspaceId),
             eq(t.agentRuns.status, 'done'),
+            // Excludes non-agent observability rows (e.g. intent derivation,
+            // `agent_id IS NULL`) — this total is the sum of AGENT review runs.
+            isNotNull(t.agentRuns.agentId),
           ),
         )
         .orderBy(desc(t.agentRuns.ranAt));

@@ -72,6 +72,40 @@ everywhere.
 - `docker compose down -v` deletes the `devdigest_pgdata` volume — every
   imported repo/review with it. Don't, unless resetting on purpose.
 
+## Multi-agent orchestration
+
+When running a research → plan → implement → review pipeline for a
+non-trivial feature (multiple subagents via the `Agent` tool), apply these
+rules to avoid redundant re-reading of the same diff/files across agents:
+
+- **Scope `researcher` to external practices only.** `planner` already reads
+  this repo's `CLAUDE.md`/`INSIGHTS.md`/source files as part of its job —
+  don't have `researcher` re-derive internal repo context that `planner` will
+  independently re-read anyway. Only dispatch `researcher` for questions that
+  need `WebSearch`/`WebFetch` (external prior art, standards), which `planner`
+  doesn't have.
+- **Pass reports as file + short abstract, not full text.** Write an agent's
+  report to the scratchpad and hand the next agent the path plus a 5–10 line
+  abstract, instead of pasting the full text into the next prompt — this
+  avoids duplicating the same multi-thousand-token report once as output and
+  again as another agent's input.
+- **Have `implementer` emit a short diff digest** (touched files + relevant
+  hunks + one-line-per-file summary) at the end of its run. Point follow-up
+  review agents (`architecture-reviewer`, `plan-verifier`, security review) at
+  that digest first, so they aren't each independently re-reading the full
+  touched-file set from scratch.
+- **Prefer `diff <file1> <file2>` over reading both in full** when comparing
+  the duplicated `@devdigest/shared` mirrors between `server/` and `client/`.
+- **Use a cheaper model / lower effort for mechanical, checklist-style
+  verification** (e.g. `plan-verifier` confirming code exists at a given
+  location against an already-detailed spec) — it's cross-referencing, not
+  judgment. Keep full-capability models for judgment-heavy review
+  (`architecture-reviewer`, security review), where under-powering the model
+  risks missing real findings.
+- **Keep architecture-review and plan-verification as separate agents.**
+  Their independence is what catches each other's blind spots — don't merge
+  them purely to save tokens; that's a coverage trade-off, not a free win.
+
 ## Per-module docs
 
 Each module has its own `CLAUDE.md`, `README.md`, `docs/`, `specs/`,

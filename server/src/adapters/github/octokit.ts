@@ -88,7 +88,10 @@ export class OctokitGitHubClient implements GitHubClient {
             pull_number: n,
             per_page: 100,
           });
-          const linkedIssue = await this.resolveLinkedIssue(repo, pr.body ?? '');
+          const linkedIssue = await this.resolveLinkedIssue(
+            repo,
+            [pr.body ?? '', pr.title, pr.head.ref].join('\n'),
+          );
           return {
             number: pr.number,
             title: pr.title,
@@ -123,9 +126,9 @@ export class OctokitGitHubClient implements GitHubClient {
     );
   }
 
-  /** linked issue via regex on PR body (#123 / closes #123). */
-  private async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
-    const m = body.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
+  /** linked issue via regex on PR body/title/branch (#123 / closes #123). */
+  private async resolveLinkedIssue(repo: RepoRef, text: string): Promise<IssueMeta | undefined> {
+    const m = text.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
     if (!m?.[1]) return undefined;
     try {
       return await this.getIssue(repo, Number(m[1]));

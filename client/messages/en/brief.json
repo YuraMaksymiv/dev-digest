@@ -15,5 +15,29 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "intentCard": {
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "nothingNoted": "Nothing specific noted.",
+    "emptyTitle": "Intent not derived yet",
+    "emptyBody": "Run a review or re-check to infer this PR's intent and scope.",
+    "recheck": "Re-check intent",
+    "rechecking": "Re-checking…",
+    "missingIssueHint": "The linked issue couldn't be fetched — intent may be based on incomplete context.",
+    "missingContentHint": "A linked spec/URL couldn't be fetched — intent may be based on incomplete context.",
+    "category": {
+      "feat": "Feature",
+      "fix": "Fix",
+      "refactor": "Refactor",
+      "perf": "Performance",
+      "chore": "Chore",
+      "docs": "Docs",
+      "test": "Test",
+      "style": "Style",
+      "build": "Build",
+      "ci": "CI",
+      "security": "Security"
+    }
   }
 }

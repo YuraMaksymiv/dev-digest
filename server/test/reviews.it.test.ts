@@ -7,7 +7,7 @@ import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { Review } from '@devdigest/shared';
+import { SmartDiff, type GitHubClient, type Review } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -119,6 +119,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         git: new MockGitClient({ diff: DIFF }),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
+          // Intent derivation (review_intent's default is openrouter) — no
+          // fixture, so it throws and the run's `intent` stays undefined,
+          // matching pre-intent behavior for these assertions.
+          openrouter: new MockLLMProvider('openrouter'),
         },
       },
     });
@@ -375,6 +379,98 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // The replay buffer should contain our log lines as SSE `data:` frames.
     expect(sse.payload).toContain('Starting review');
     expect(sse.payload).toContain('Citation grounding');
+    await app.close();
+  });
+
+  it('GET /pulls/:id/smart-diff: 200, a valid SmartDiff, groups in display order — no LLM run needed', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // setupRepoAndPr already seeded one core file (src/config.ts); add a second,
+    // docs-role file so the route's output spans ≥2 roles.
+    await pg.handle.db.insert(t.prFiles).values({
+      prId: pr.id,
+      path: 'README.md',
+      additions: 2,
+      deletions: 0,
+      patch: '@@ -1,1 +1,3 @@\n line\n+doc line\n+doc line 2',
+    });
+
+    const res = await app.inject({ method: 'GET', url: `/pulls/${pr.id}/smart-diff` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(SmartDiff.safeParse(body).success).toBe(true);
+    expect(body.groups.map((g: { role: string }) => g.role)).toEqual([
+      'core',
+      'tests',
+      'wiring',
+      'docs',
+      'boilerplate',
+    ]);
+    const core = body.groups.find((g: { role: string }) => g.role === 'core');
+    const docs = body.groups.find((g: { role: string }) => g.role === 'docs');
+    expect(core.files.map((f: { path: string }) => f.path)).toEqual(['src/config.ts']);
+    expect(docs.files.map((f: { path: string }) => f.path)).toEqual(['README.md']);
+
+    await app.close();
+  });
+
+  it('GET/POST /pulls/:id/intent: null before derivation, 200 + persisted on POST, second GET returns the same row', async () => {
+    const INTENT_FIXTURE = {
+      intent: 'Adds rate limiting to the public API.',
+      in_scope: ['src/config.ts'],
+      out_of_scope: ['authentication'],
+      confidence: 0.72,
+      category: 'feat',
+    };
+    const app = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: {
+        embedder: new MockEmbedder(),
+        git: new MockGitClient({ diff: DIFF }),
+        llm: {
+          openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }),
+          openrouter: new MockLLMProvider('openrouter', { structured: INTENT_FIXTURE }),
+        },
+        // Deterministic 'unavailable' (not ambient-env-dependent): the PR body
+        // below references an issue, but the fetch itself fails.
+        github: {
+          getIssue: async () => {
+            throw new Error('not found');
+          },
+        } as unknown as GitHubClient,
+      },
+    });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const before = await app.inject({ method: 'GET', url: `/pulls/${pr.id}/intent` });
+    expect(before.statusCode).toBe(200);
+    expect(before.json()).toBeNull();
+
+    const posted = await app.inject({ method: 'POST', url: `/pulls/${pr.id}/intent` });
+    expect(posted.statusCode).toBe(200);
+    const body = posted.json();
+    expect(body.pr_id).toBe(pr.id);
+    expect(body.category).toBe('feat');
+    expect(body.confidence).toBe(0.72);
+    // setupRepoAndPr's body is "...Closes #471." (a reference, fetch fails) and
+    // has no other URL — sources reflects the three-state resolution server-side.
+    expect(body.sources).toEqual({ linked_issue: 'unavailable', linked_content: 'absent' });
+
+    const after = await app.inject({ method: 'GET', url: `/pulls/${pr.id}/intent` });
+    expect(after.statusCode).toBe(200);
+    expect(after.json()).toMatchObject({ pr_id: pr.id, category: 'feat' });
+
+    await app.close();
+  });
+
+  it('POST /pulls/:id/intent: 502 (not a silent 200) when the model/provider is unavailable', async () => {
+    // Default appWith's openrouter mock has no fixture — completeStructured's
+    // {} fixture fails Intent schema validation, loadIntent returns undefined.
+    const app = appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const res = await app.inject({ method: 'POST', url: `/pulls/${pr.id}/intent` });
+    expect(res.statusCode).toBe(502);
     await app.close();
   });
 

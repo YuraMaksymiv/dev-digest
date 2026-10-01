@@ -19,10 +19,12 @@ export async function waitForPrRuns(
   const { expected, timeoutMs = 10_000 } = opts;
   const start = Date.now();
   for (;;) {
-    const runs = await db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, prId));
+    const allRuns = await db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, prId));
+    // Extra, non-agent rows (e.g. the intent classifier's observability row,
+    // `agent_id IS NULL`) are excluded from both counts — they finish on their
+    // own schedule and are not what callers mean by "the PR's review runs".
+    const runs = allRuns.filter((r) => r.agentId != null);
     const terminal = runs.filter((r) => TERMINAL.has(r.status ?? ''));
-    // With an explicit `expected`, wait until that many runs finish (ignores any
-    // extra rows, e.g. a trifecta scan). Otherwise wait for all rows to settle.
     const done =
       expected != null
         ? terminal.length >= expected
