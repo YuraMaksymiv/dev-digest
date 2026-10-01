@@ -5,10 +5,13 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, Badge, Button, EmptyState, ErrorState, MonoLink, Skeleton } from "@devdigest/ui";
+import { Icon, Button, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import { blastRadiusKey, useBlastRadius } from "@/lib/hooks/blast";
 import { useRepoIntelStatus, useResyncRepoIntel } from "@/lib/hooks/repo-intel";
-import { blastStats, callerHref } from "./helpers";
+import { blastStats } from "./helpers";
+import { BLAST_VIEWS, STAT_ICON, STAT_KEYS, type BlastView } from "./constants";
+import { BlastTree } from "./_components/BlastTree";
+import { BlastGraph } from "./_components/BlastGraph";
 import { s } from "./styles";
 
 interface BlastRadiusProps {
@@ -23,6 +26,7 @@ export function BlastRadius({ prId, repoId, repoFullName, headSha }: BlastRadius
   const qc = useQueryClient();
   const { data: blast, isLoading, isError, refetch } = useBlastRadius(prId);
   const resync = useResyncRepoIntel(repoId);
+  const [view, setView] = React.useState<BlastView>("tree");
 
   // A resync is async (202): the index row's updatedAt advancing is the completion signal.
   const [baseline, setBaseline] = React.useState<string | null>(null);
@@ -65,7 +69,7 @@ export function BlastRadius({ prId, repoId, repoFullName, headSha }: BlastRadius
   return (
     <section style={s.wrap}>
       <div style={s.headerRow}>
-        <Icon.Zap size={14} style={s.headerIcon} />
+        <Icon.Workflow size={14} style={s.headerIcon} />
         <span style={s.headerLabel}>{t("title")}</span>
       </div>
 
@@ -92,59 +96,46 @@ export function BlastRadius({ prId, repoId, repoFullName, headSha }: BlastRadius
       )}
 
       {showEmpty ? (
-        <EmptyState icon="Zap" title={t("empty.title")} body={t("empty.body")} />
+        <EmptyState icon="Workflow" title={t("empty.title")} body={t("empty.body")} />
       ) : (
         <>
-          <div style={s.stats}>
-            {(["symbols", "callers", "endpoints", "crons"] as const).map((key) => (
-              <div key={key}>
-                <span style={s.statValue}>{stats[key]}</span>
-                <span style={s.statLabel}>{t(`stat.${key}`)}</span>
-              </div>
-            ))}
-          </div>
-          <p style={s.summary}>{blast.summary}</p>
-
-          {blast.downstream.map((d) => (
-            <div key={d.symbol} style={s.group}>
-              <div style={s.groupHeader}>
-                <span className="mono" style={s.symbol}>
-                  {d.symbol}
-                </span>
-                <Badge>{t("callerCount", { count: d.callers.length })}</Badge>
-              </div>
-              <ul style={s.callerList}>
-                {d.callers.map((c) => {
-                  const href = callerHref(repoFullName, headSha, c.file, c.line);
-                  const label = `${c.file}:${c.line}`;
-                  return (
-                    <li key={`${c.file}:${c.line}:${c.name}`} style={s.callerRow}>
-                      <span className="mono">{c.name}</span>
-                      {href ? (
-                        <MonoLink href={href}>{label}</MonoLink>
-                      ) : (
-                        <span className="mono">{label}</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-              {(d.endpoints_affected.length > 0 || d.crons_affected.length > 0) && (
-                <div style={s.chips}>
-                  {d.endpoints_affected.map((e) => (
-                    <Badge key={`e:${e}`} mono icon="Globe">
-                      {e}
-                    </Badge>
-                  ))}
-                  {d.crons_affected.map((c) => (
-                    <Badge key={`c:${c}`} mono icon="Clock">
-                      {c}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+          <div style={s.statsRow}>
+            <div style={s.stats}>
+              {STAT_KEYS.map((key) => {
+                const I = Icon[STAT_ICON[key]];
+                return (
+                  <span key={key} style={s.stat}>
+                    <I size={14} style={s.statIcon} />
+                    <span style={s.statValue}>{stats[key]}</span>
+                    <span>{t(`stat.${key}`)}</span>
+                  </span>
+                );
+              })}
             </div>
-          ))}
+            {hasCallers && (
+              <div role="group" aria-label={t("view.label")} style={s.toggle}>
+                {BLAST_VIEWS.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={view === v}
+                    onClick={() => setView(v)}
+                    style={{ ...s.toggleBtn, ...(view === v ? s.toggleBtnOn : null) }}
+                  >
+                    {t(`view.${v}`)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {!hasCallers ? (
+            <p style={s.muted}>{t("noDownstream", { count: stats.symbols })}</p>
+          ) : view === "tree" ? (
+            <BlastTree blast={blast} repoFullName={repoFullName} headSha={headSha} />
+          ) : (
+            <BlastGraph blast={blast} repoFullName={repoFullName} headSha={headSha} />
+          )}
         </>
       )}
     </section>

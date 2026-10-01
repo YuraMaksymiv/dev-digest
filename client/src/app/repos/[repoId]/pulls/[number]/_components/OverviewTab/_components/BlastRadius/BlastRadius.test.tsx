@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { BlastRadius as BlastRadiusData } from "@devdigest/shared";
 import messages from "../../../../../../../../../../messages/en/blast.json";
@@ -53,6 +53,38 @@ describe("BlastRadius", () => {
     expect(link).toHaveAttribute("href", "https://github.com/o/r/blob/abc123/src/b.ts#L23");
     expect(screen.getByText("GET /x")).toBeInTheDocument();
     expect(screen.getByText("nightly")).toBeInTheDocument();
+  });
+
+  it("shows the icon summary row and a singular caller count", () => {
+    setup(DATA);
+    expect(screen.getByText("cron")).toBeInTheDocument();
+    expect(screen.getByText("1 caller")).toBeInTheDocument();
+    expect(screen.getByText("rateLimit()")).toBeInTheDocument();
+  });
+
+  it("collapses and re-expands a symbol's callers", () => {
+    setup(DATA);
+    const row = screen.getByRole("button", { name: /rateLimit\(\)/ });
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "src/b.ts:23" })).not.toBeInTheDocument();
+    fireEvent.click(row);
+    expect(screen.getByRole("link", { name: "src/b.ts:23" })).toBeInTheDocument();
+  });
+
+  it("switches to the graph view", () => {
+    setup(DATA);
+    fireEvent.click(screen.getByRole("button", { name: "Graph" }));
+    expect(screen.getByRole("button", { name: "Graph" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("img", { name: "Blast radius graph" })).toBeInTheDocument();
+    expect(screen.getByText("endpoints affected")).toBeInTheDocument();
+  });
+
+  it("says no downstream callers when symbols changed but nothing calls them", () => {
+    setup({ ...DATA, downstream: [] });
+    expect(screen.getByText("1 changed symbol, no downstream callers found.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Graph" })).not.toBeInTheDocument();
   });
 
   it("shows the empty state when there are no changed symbols", () => {

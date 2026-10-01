@@ -100,10 +100,33 @@ export function chevronFor(open: boolean): CSSProperties {
   };
 }
 
-/** Row background per line kind (add/del tinted, others transparent). */
-export function lineRowFor(kind: Line["kind"]): CSSProperties {
+/** Row background per line kind (add/del tinted, others transparent), plus an
+ *  optional severity-colored left stripe when the line anchors a finding. */
+export function lineRowFor(kind: Line["kind"], severityColor?: string): CSSProperties {
   const background = kind === "add" ? "var(--code-add)" : kind === "del" ? "var(--code-del)" : "transparent";
-  return { display: "flex", alignItems: "stretch", fontSize: 13, lineHeight: "20px", background };
+  return {
+    display: "flex",
+    alignItems: "stretch",
+    fontSize: 13,
+    lineHeight: "20px",
+    background,
+    borderLeft: `3px solid ${severityColor ?? "transparent"}`,
+  };
+}
+
+/** The short severity label shown at the right of a line with a finding
+ *  (CRITICAL → "blocker", per the severity's own color token). */
+export function severityLabelFor(color: string): CSSProperties {
+  return {
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color,
+    flexShrink: 0,
+    alignSelf: "center",
+    padding: "0 10px",
+  };
 }
 
 /** Gutter sign colour per line kind. */
