@@ -5,6 +5,7 @@ import type {
   AgentInfo,
   Convention,
   Finding,
+  PrRef,
   ResponseFormat,
   Review,
   RunDetail,
@@ -145,6 +146,85 @@ export function formatFindingsPage(input: FindingsPageInput): string {
       : `Showing ${offset + 1}-${end} of ${total}. End of results.`;
   const budget = MAX_OUTPUT_CHARS - header.length - filter.length - footer.length - 2;
   return [`${header}${filter}`, wrapUntrusted(lines.join('\n'), budget), footer].join('\n');
+}
+
+/** Latest review per agent: a rerun of the same agent supersedes its older reviews. */
+export function latestReviewPerAgent(reviews: readonly Review[]): Review[] {
+  const newestFirst = reviews
+    .filter((r) => r.kind === 'review')
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+  const seen = new Set<string>();
+  return newestFirst.filter((r, i) => {
+    const key = r.agentName ?? r.runId ?? `#${i}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function findingJson(f: Finding, format: ResponseFormat) {
+  const base = { severity: f.severity, location: location(f), title: oneLine(f.title) };
+  if (format === 'concise') return base;
+  return { ...base, rationale: oneLine(f.rationale), suggestion: f.suggestion ? oneLine(f.suggestion) : null };
+}
+
+export interface PrFindingsInput {
+  pr: PrRef;
+  reviews: readonly Review[];
+  severity: Severity | undefined;
+  format: ResponseFormat;
+  limit: number;
+}
+
+/**
+ * Whole-PR view: every agent's latest review with its findings nested. When the
+ * JSON would exceed the output budget, the per-review cap shrinks evenly
+ * instead of dropping whole agents; findings_count always reports the full number.
+ */
+export function formatPrFindings(input: PrFindingsInput): string {
+  const { pr, severity, format, limit } = input;
+  const prLabel = `${pr.repo}#${pr.number}`;
+  const reviews = latestReviewPerAgent(input.reviews).map((review) => ({
+    review,
+    sorted: sortFindings(severity ? review.findings.filter((f) => f.severity === severity) : review.findings),
+  }));
+  if (reviews.length === 0) {
+    return `${prLabel}: no reviews yet. Start one with run_agent_on_pr(repo="${pr.repo}", pr_number=${pr.number}).`;
+  }
+
+  const total = reviews.reduce((n, r) => n + r.sorted.length, 0);
+  const filter = severity ? ` (filtered to ${severity})` : '';
+  const header = `${prLabel}: ${reviews.length} review(s), total_findings=${total}${filter}.`;
+  const build = (perReview: number) =>
+    JSON.stringify({
+      repo: pr.repo,
+      pr_number: pr.number,
+      total_findings: total,
+      reviews: reviews.map(({ review, sorted }) => ({
+        agent: review.agentName,
+        run_id: review.runId,
+        verdict: review.verdict,
+        score: review.score,
+        findings_count: sorted.length,
+        findings: sorted.slice(0, perReview).map((f) => findingJson(f, format)),
+      })),
+    });
+
+  const footerReserve = 200;
+  const room = MAX_OUTPUT_CHARS - header.length - footerReserve - UNTRUSTED_OVERHEAD;
+  let perReview = limit;
+  let json = build(perReview);
+  while (json.length > room && perReview > 0) {
+    perReview -= 1;
+    json = build(perReview);
+  }
+
+  const truncated = reviews.some((r) => r.sorted.length > perReview);
+  const footer = truncated
+    ? `Showing up to ${perReview} findings per review. For one agent's full list call get_findings(run_id=<that review's run_id>), which paginates.`
+    : '';
+  const budget = MAX_OUTPUT_CHARS - header.length - footer.length - 2;
+  return [header, wrapUntrusted(json, budget), footer].filter(Boolean).join('\n');
 }
 
 export function formatConventions(conventions: readonly Convention[], section: string | undefined): string {

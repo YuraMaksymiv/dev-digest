@@ -10,7 +10,7 @@ no DB, no GitHub, no LLM of its own. Tool reference: [README.md](README.md).
 
 ## Commands
 
-- `pnpm install` — first-time setup (own lockfile; `mcp/mcp.json` runs the local `tsx`; deliberately not at repo root, so Claude Code only starts it on demand — see README "Run on demand")
+- `pnpm install` — first-time setup (own lockfile; the repo-root `.mcp.json` runs the local `tsx`, so Claude Code offers the server to anyone who opens the repo — see README "Run in Claude Code")
 - `pnpm start` — run the stdio server by hand (`src/index.ts`)
 - `pnpm test` — vitest, hermetic (fake `DevDigestApi`, in-memory MCP transport)
 - `pnpm typecheck`

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MAX_OUTPUT_CHARS } from '../domain/constants.js';
 import type { Finding, Severity } from '../domain/types.js';
 import { ApiError } from '../ports.js';
-import { FakeApi, RUN_ID, review, runDetail } from '../test-support/fake-api.js';
+import { FakeApi, PR_ID, RUN_ID, review, runDetail } from '../test-support/fake-api.js';
 import { FindingsService } from './findings.service.js';
 
 function finding(i: number, severity: Severity = 'WARNING', over: Partial<Finding> = {}): Finding {
@@ -146,6 +146,85 @@ describe('FindingsService', () => {
 
   it('rejects a non-uuid run_id before calling the API', async () => {
     await expect(service.getFindings({ ...base, runId: 'abc' })).rejects.toThrow('Invalid run_id');
+    expect(api.calls).toEqual([]);
+  });
+});
+
+describe('FindingsService — whole PR (repo + pr_number)', () => {
+  let api: FakeApi;
+  let service: FindingsService;
+  const prBase = { repo: 'acme/widgets', prNumber: 7, format: 'concise' as const, limit: 10 };
+  const parse = (text: string) => JSON.parse(/\n(\{.*\})\n/s.exec(text)![1]!);
+
+  beforeEach(() => {
+    api = new FakeApi();
+    service = new FindingsService(api);
+  });
+
+  it('returns every agent review with nested findings and total_findings in one call', async () => {
+    api.reviews = [
+      review([finding(1, 'WARNING'), finding(2, 'CRITICAL')], { runId: 'run-g', agentName: 'General Reviewer' }),
+      review([finding(3, 'SUGGESTION')], { runId: 'run-s', agentName: 'Security Reviewer' }),
+    ];
+    const out = await service.getFindings(prBase);
+
+    expect(out.isError).toBe(false);
+    expect(out.text).toContain('acme/widgets#7: 2 review(s), total_findings=3.');
+    expect(out.text).toContain('<untrusted_review_output>');
+    const body = parse(out.text);
+    expect(body.total_findings).toBe(3);
+    expect(body.reviews.map((r: { agent: string }) => r.agent)).toEqual(['General Reviewer', 'Security Reviewer']);
+    expect(body.reviews[0]).toMatchObject({ run_id: 'run-g', findings_count: 2 });
+    expect(body.reviews[0].findings[0]).toEqual({ severity: 'CRITICAL', location: 'src/a.ts:2', title: 'Title 2' });
+    expect(api.calls).toEqual(['lookupPull acme/widgets#7', `listReviews ${PR_ID}`]);
+  });
+
+  it('keeps only the latest review per agent and skips non-review rows', async () => {
+    api.reviews = [
+      review([finding(1)], { runId: 'old', createdAt: '2026-10-01T10:00:00Z' }),
+      review([finding(2), finding(3)], { runId: 'new', createdAt: '2026-10-02T10:00:00Z' }),
+      review([finding(4)], { runId: 'sum', kind: 'summary', agentName: 'Summarizer' }),
+    ];
+    const body = parse((await service.getFindings(prBase)).text);
+    expect(body.reviews).toHaveLength(1);
+    expect(body.reviews[0].run_id).toBe('new');
+    expect(body.total_findings).toBe(2);
+  });
+
+  it('applies the severity filter and detailed format', async () => {
+    api.reviews = [review([finding(1, 'WARNING'), finding(2, 'CRITICAL')])];
+    const out = await service.getFindings({ ...prBase, severity: 'CRITICAL', format: 'detailed' });
+    expect(out.text).toContain('total_findings=1 (filtered to CRITICAL)');
+    expect(parse(out.text).reviews[0].findings[0]).toMatchObject({ rationale: 'Why 2', suggestion: 'Fix 2' });
+  });
+
+  it('shrinks the per-review cap to fit the budget and points to run_id paging', async () => {
+    const long = 'x'.repeat(150);
+    api.reviews = [
+      review(Array.from({ length: 30 }, (_, i) => finding(i + 1, 'WARNING', { title: long })), { agentName: 'A', runId: 'ra' }),
+      review(Array.from({ length: 30 }, (_, i) => finding(i + 1, 'WARNING', { title: long })), { agentName: 'B', runId: 'rb' }),
+    ];
+    const out = await service.getFindings({ ...prBase, limit: 50 });
+    expect(out.text.length).toBeLessThanOrEqual(MAX_OUTPUT_CHARS);
+    const body = parse(out.text);
+    expect(body.reviews).toHaveLength(2);
+    expect(body.reviews[0].findings_count).toBe(30);
+    expect(body.reviews[0].findings.length).toBeLessThan(30);
+    expect(out.text).toContain('get_findings(run_id=');
+  });
+
+  it('says how to start a review when the PR has none', async () => {
+    const out = await service.getFindings(prBase);
+    expect(out.text).toContain('no reviews yet');
+    expect(out.text).toContain('run_agent_on_pr(repo="acme/widgets", pr_number=7)');
+  });
+
+  it('rejects ambiguous or incomplete arguments before calling the API', async () => {
+    await expect(service.getFindings({ ...prBase, runId: RUN_ID })).rejects.toThrow('not both');
+    await expect(service.getFindings({ repo: 'acme/widgets', format: 'concise', limit: 10 })).rejects.toThrow(
+      'repo + pr_number',
+    );
+    await expect(service.getFindings({ ...prBase, cursor: 'c' })).rejects.toThrow('cursor only works with run_id');
     expect(api.calls).toEqual([]);
   });
 });

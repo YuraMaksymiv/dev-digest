@@ -9,6 +9,8 @@ export function registerGetFindings(server: McpServer, deps: ToolDeps): void {
     guard(deps.logger, () =>
       deps.findings.getFindings({
         runId: args.run_id,
+        repo: args.repo,
+        prNumber: args.pr_number,
         severity: args.severity,
         format: args.response_format,
         limit: args.limit,

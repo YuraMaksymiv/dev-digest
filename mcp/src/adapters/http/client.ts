@@ -79,6 +79,8 @@ export class HttpDevDigestApi implements DevDigestApi {
     const rows = await this.get(`/pulls/${encodeURIComponent(prId)}/reviews`, ReviewsResponse);
     return rows.map((r) => ({
       runId: r.run_id,
+      agentName: r.agent_name ?? null,
+      createdAt: r.created_at ?? null,
       kind: r.kind,
       verdict: r.verdict ?? null,
       summary: r.summary ?? null,

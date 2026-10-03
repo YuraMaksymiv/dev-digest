@@ -84,6 +84,26 @@ describe('HttpDevDigestApi requests', () => {
     expect(started).toEqual({ runId: 'r1', agentId: 'ag', agentName: 'N' });
   });
 
+  it('maps a review row with its agent name and timestamp', async () => {
+    const client = api(async () =>
+      json([
+        {
+          run_id: 'r1',
+          agent_name: 'Security Reviewer',
+          created_at: '2026-10-01T12:00:00Z',
+          kind: 'review',
+          verdict: 'comment',
+          score: 88,
+          findings: [],
+        },
+        { run_id: null, kind: 'review', findings: [] },
+      ]),
+    );
+    const [withAgent, bare] = await client.listReviews('p');
+    expect(withAgent).toMatchObject({ runId: 'r1', agentName: 'Security Reviewer', createdAt: '2026-10-01T12:00:00Z' });
+    expect(bare).toMatchObject({ agentName: null, createdAt: null });
+  });
+
   it('keeps accepted conventions only', async () => {
     const rows = await api(async () =>
       json([

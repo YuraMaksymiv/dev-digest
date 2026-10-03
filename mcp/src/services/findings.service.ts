@@ -2,6 +2,7 @@ import { decodeCursor, type CursorScope } from '../domain/cursor.js';
 import { ToolError } from '../domain/errors.js';
 import {
   formatFindingsPage,
+  formatPrFindings,
   formatRunCancelled,
   formatRunFailed,
   formatRunning,
@@ -13,7 +14,9 @@ import { ApiError, type DevDigestApi } from '../ports.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface GetFindingsInput {
-  runId: string;
+  runId?: string | undefined;
+  repo?: string | undefined;
+  prNumber?: number | undefined;
   severity?: Severity | undefined;
   format: ResponseFormat;
   limit: number;
@@ -24,6 +27,28 @@ export class FindingsService {
   constructor(private readonly api: DevDigestApi) {}
 
   async getFindings(input: GetFindingsInput): Promise<ToolOutput> {
+    const byPr = input.repo !== undefined || input.prNumber !== undefined;
+    if (input.runId !== undefined && byPr) {
+      throw new ToolError('Pass either run_id, or repo + pr_number — not both.');
+    }
+    if (input.runId !== undefined) return this.getRunFindings({ ...input, runId: input.runId });
+    if (input.repo === undefined || input.prNumber === undefined) {
+      throw new ToolError(
+        'Pass run_id (from run_agent_on_pr) for one run, or repo + pr_number for every agent review on that PR.',
+      );
+    }
+    if (input.cursor !== undefined) {
+      throw new ToolError('cursor only works with run_id. Use the run_id of one review to page through its findings.');
+    }
+    const pr = await this.api.lookupPull(input.repo, input.prNumber);
+    const reviews = await this.api.listReviews(pr.prId);
+    return {
+      text: formatPrFindings({ pr, reviews, severity: input.severity, format: input.format, limit: input.limit }),
+      isError: false,
+    };
+  }
+
+  private async getRunFindings(input: GetFindingsInput & { runId: string }): Promise<ToolOutput> {
     if (!UUID.test(input.runId)) {
       throw new ToolError('Invalid run_id: use the run_id returned by run_agent_on_pr (a UUID).');
     }

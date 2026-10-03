@@ -6,7 +6,7 @@ import { connectInMemory, type RpcSession } from '../test-support/rpc.js';
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
 
 const INSTRUCTIONS =
-  'DevDigest reviews GitHub PRs that are already imported into the local DevDigest app. Workflow: list_agents → run_agent_on_pr (blocks up to 120s) → if status=running, poll get_findings(run_id). `repo` is always "owner/name". `agent` accepts a name or id from list_agents. Errors include a next step — follow it instead of retrying blindly.';
+  'DevDigest reviews GitHub PRs that are already imported into the local DevDigest app. Workflow: list_agents → run_agent_on_pr (blocks up to 120s) → if status=running, poll get_findings(run_id); get_findings(repo, pr_number) shows all reviews on a PR. `repo` is always "owner/name". `agent` accepts a name or id from list_agents. Errors include a next step — follow it instead of retrying blindly.';
 
 const DESCRIPTIONS: Record<string, string> = {
   list_agents:
@@ -14,7 +14,7 @@ const DESCRIPTIONS: Record<string, string> = {
   run_agent_on_pr:
     'Run one reviewer agent on an imported pull request and wait up to 120s for it to finish. Returns a findings summary, or run_id with status=running if still in progress — then call get_findings.',
   get_findings:
-    'Get the status and findings of a review run by run_id. Returns status=running until done; results are paginated (use cursor) and response_format=detailed adds rationale and fix suggestions.',
+    "Get review findings. With run_id: status and findings of that run (status=running until done; paginated via cursor). With repo + pr_number instead: every agent's latest review on the PR with nested findings and total_findings. response_format=detailed adds rationale and fixes.",
   get_conventions:
     'Get the accepted coding conventions DevDigest applies when reviewing a repo, one line per rule. Use `section` to narrow the output.',
   get_blast_radius:
@@ -86,12 +86,14 @@ describe('tools/list', () => {
     expect(Object.keys(props('run_agent_on_pr'))).toEqual(['repo', 'pr_number', 'agent']);
     expect(props('get_findings')).toMatchObject({
       run_id: { type: 'string' },
+      repo: REPO,
+      pr_number: { type: 'integer' },
       severity: { type: 'string', enum: ['CRITICAL', 'WARNING', 'SUGGESTION'] },
       response_format: { type: 'string', enum: ['concise', 'detailed'], default: 'concise' },
       limit: { type: 'integer', minimum: 1, maximum: 50, default: 10 },
       cursor: { type: 'string', description: 'From the previous response' },
     });
-    expect(required('get_findings')).toEqual(['run_id']);
+    expect(required('get_findings')).toEqual([]);
     expect(props('get_conventions')).toMatchObject({
       repo: REPO,
       section: {

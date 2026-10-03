@@ -54,6 +54,8 @@ export interface Finding {
 
 export interface Review {
   runId: string | null;
+  agentName: string | null;
+  createdAt: string | null;
   kind: string;
   verdict: string | null;
   summary: string | null;

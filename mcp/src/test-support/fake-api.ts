@@ -35,7 +35,7 @@ export function runDetail(overrides: Partial<RunDetail> = {}): RunDetail {
 }
 
 export function review(findings: Review['findings'], overrides: Partial<Review> = {}): Review {
-  return { runId: RUN_ID, kind: 'review', verdict: 'comment', summary: 'Looks mostly fine.', score: 80, findings, ...overrides };
+  return { runId: RUN_ID, agentName: 'General Reviewer', createdAt: null, kind: 'review', verdict: 'comment', summary: 'Looks mostly fine.', score: 80, findings, ...overrides };
 }
 
 type WaitBehavior = (runId: string, options: WaitForRunOptions) => Promise<'ended' | 'aborted'>;

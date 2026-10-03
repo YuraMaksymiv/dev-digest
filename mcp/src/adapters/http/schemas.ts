@@ -43,6 +43,8 @@ export const RunDetailResponse = z.looseObject({
 export const ReviewsResponse = z.array(
   z.looseObject({
     run_id: z.string().nullable(),
+    agent_name: z.string().nullish(),
+    created_at: z.string().nullish(),
     kind: z.string(),
     verdict: z.string().nullish(),
     summary: z.string().nullish(),

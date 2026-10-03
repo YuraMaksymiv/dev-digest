@@ -11,7 +11,7 @@ of the DevDigest API (`DEVDIGEST_API_URL`); it needs the API running.
 |---|---|
 | `list_agents` | Agents with name, id, enabled, one-line focus. |
 | `run_agent_on_pr(repo, pr_number, agent)` | Starts a review and **blocks up to 120s** (via the run's SSE stream, with progress notifications when the client sends a `progressToken`). Done: concise findings summary. Still running: `run_id` + `status=running`, then call `get_findings`. A client abort stops the wait but does not cancel the run. |
-| `get_findings(run_id, severity?, response_format?, limit?, cursor?)` | Status + findings, severity-sorted, paginated (default 10, max 50). `response_format=detailed` adds rationale and fixes. |
+| `get_findings(run_id \| repo + pr_number, severity?, response_format?, limit?, cursor?)` | With `run_id`: status + findings of that run, severity-sorted, paginated (default 10, max 50). With `repo` + `pr_number`: one JSON overview of the PR — every agent's latest review (`agent`, `run_id`, `verdict`, `score`, `findings_count`) with its findings nested, plus `total_findings`; `limit` caps findings per review and shrinks to fit the output budget (page one agent's full list via its `run_id`). `response_format=detailed` adds rationale and fixes. |
 | `get_conventions(repo, section?)` | Accepted conventions, one line per rule. |
 | `get_blast_radius(repo, pr_number)` | Blast radius of an imported PR as JSON (changed symbols, callers as file:line, endpoints/crons), wrapped in `<untrusted_review_output>`. `degraded` + `reason` flag best-effort data; `no_data` means open the PR in DevDigest once (its changed files load on first open) and resync the index. |
 
@@ -29,8 +29,9 @@ All copy lives in `src/tools/copy.ts`.
 ## Setup from scratch
 
 The MCP server is **not** part of `./scripts/dev.sh`: the script neither installs
-`mcp/` deps nor starts it. There is also no `.mcp.json` at the repo root, so a
-Claude Code session in this repo does not spawn it automatically. It is a stdio
+`mcp/` deps nor starts it. The server is declared in the project-scoped
+`.mcp.json` at the repo root, so Claude Code offers it to everyone who opens
+the repo (after a one-time approval prompt) once `mcp/` deps are installed. It is a stdio
 server — it never runs as a daemon; the MCP client spawns it for one session
 and kills it when the session ends. "Starting it" therefore means opening a
 Claude Code session with it enabled.
@@ -59,29 +60,25 @@ All commands run from the repo root.
    ```
    Call `list_agents`; with the API down you get an `isError` with the dev.sh hint.
 
-## Run on demand
+## Run in Claude Code
 
-`mcp/mcp.json` holds the server definition (`devdigest`, local `tsx`,
-`DEVDIGEST_API_URL`, `timeout` 140000 ms so the 120s wait fits). Pick one way:
+`.mcp.json` (repo root) holds the server definition (`devdigest`, local `tsx`,
+`DEVDIGEST_API_URL`, `timeout` 140000 ms so the 120s wait fits). It is
+project-scoped and committed, so it works right after cloning:
 
-- **Per session (recommended)** — only this `claude` session gets the server:
-  ```bash
-  claude --mcp-config mcp/mcp.json
-  ```
-  Without the flag, sessions have no DevDigest tools and spend no tokens on them.
-- **Register until you remove it** — local scope, only you, only this repo:
-  ```bash
-  claude mcp add devdigest -e DEVDIGEST_API_URL=http://127.0.0.1:3001 -- mcp/node_modules/.bin/tsx mcp/src/index.ts
-  ```
-  Remove with `claude mcp remove devdigest`. This registration has no per-server
-  `timeout`; Claude Code's default tool timeout is far above 120s, so that is fine.
+1. Install deps once (step 4 above).
+2. Run `claude` from the repo root and approve the `devdigest` project server
+   when prompted (or later via `/mcp`).
+
+To keep it out of a session, decline the prompt or disable it in `/mcp`; a
+disabled server spends no tokens on its tool definitions.
 
 Verify inside the session with `/mcp` (server `devdigest` connected) and
 `/context` (the "MCP tools" line). Paths are relative — launch `claude` from the
 repo root. The API from step 2 must be running before you call a tool; the MCP
 server itself starts fine without it and reports the outage per call.
 
-Stop: end the Claude session (or `claude mcp remove devdigest`). Stop the API
+Stop: end the Claude session (or disable `devdigest` in `/mcp`). Stop the API
 with Ctrl-C in the dev.sh terminal; Postgres keeps running (`docker compose stop`).
 
 Run it standalone for debugging only (it waits for JSON-RPC on stdin):

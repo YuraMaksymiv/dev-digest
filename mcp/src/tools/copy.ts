@@ -7,7 +7,7 @@ import { z } from 'zod';
  */
 
 export const SERVER_INSTRUCTIONS =
-  'DevDigest reviews GitHub PRs that are already imported into the local DevDigest app. Workflow: list_agents → run_agent_on_pr (blocks up to 120s) → if status=running, poll get_findings(run_id). `repo` is always "owner/name". `agent` accepts a name or id from list_agents. Errors include a next step — follow it instead of retrying blindly.';
+  'DevDigest reviews GitHub PRs that are already imported into the local DevDigest app. Workflow: list_agents → run_agent_on_pr (blocks up to 120s) → if status=running, poll get_findings(run_id); get_findings(repo, pr_number) shows all reviews on a PR. `repo` is always "owner/name". `agent` accepts a name or id from list_agents. Errors include a next step — follow it instead of retrying blindly.';
 
 const READ_ONLY = {
   readOnlyHint: true,
@@ -49,9 +49,11 @@ export const RUN_AGENT_ON_PR = {
 export const GET_FINDINGS = {
   name: 'get_findings',
   description:
-    'Get the status and findings of a review run by run_id. Returns status=running until done; results are paginated (use cursor) and response_format=detailed adds rationale and fix suggestions.',
+    'Get review findings. With run_id: status and findings of that run (status=running until done; paginated via cursor). With repo + pr_number instead: every agent\'s latest review on the PR with nested findings and total_findings. response_format=detailed adds rationale and fixes.',
   inputSchema: z.object({
-    run_id: z.string(),
+    run_id: z.string().optional(),
+    repo: repoField.optional(),
+    pr_number: z.number().int().positive().optional(),
     severity: z.enum(['CRITICAL', 'WARNING', 'SUGGESTION']).optional(),
     response_format: z.enum(['concise', 'detailed']).default('concise'),
     limit: z.number().int().min(1).max(50).default(10),
