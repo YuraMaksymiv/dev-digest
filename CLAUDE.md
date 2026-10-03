@@ -27,6 +27,7 @@ everywhere.
 | `mcp/` | `@devdigest/mcp` | Local stdio MCP server exposing agents/runs/findings/conventions to Claude Code |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts, mirrored (not npm-published) into `client/src/vendor/shared` |
 | `docs/agent-prompts/` | — | Reference prompts for the built-in review agents |
+| `specs/` | — | Specs for features spanning 2+ modules; single-module specs stay in `<module>/specs/` |
 
 ## Non-default conventions
 
@@ -79,11 +80,17 @@ When running a research → plan → implement → review pipeline for a
 non-trivial feature (multiple subagents via the `Agent` tool), apply these
 rules to avoid redundant re-reading of the same diff/files across agents:
 
-- **Scope `researcher` to external practices only.** `planner` already reads
+- **Spec first, in two passes.** A new feature starts with `spec-creator`:
+  pass 1 returns a Discovery Report (writes nothing) — ask the user its
+  blocking questions/UX proposals and dispatch its `R<n>` research requests
+  to parallel `researcher` subagents; pass 2 (resume it via `SendMessage`,
+  passing `owner/name`, the answers and report paths + abstracts) writes the
+  spec. The user sets `approved`; only then does `implementation-planner` run.
+- **Scope `researcher` to external practices only.** `implementation-planner` already reads
   this repo's `CLAUDE.md`/`INSIGHTS.md`/source files as part of its job —
-  don't have `researcher` re-derive internal repo context that `planner` will
+  don't have `researcher` re-derive internal repo context that `implementation-planner` will
   independently re-read anyway. Only dispatch `researcher` for questions that
-  need `WebSearch`/`WebFetch` (external prior art, standards), which `planner`
+  need `WebSearch`/`WebFetch` (external prior art, standards), which `implementation-planner`
   doesn't have.
 - **Pass reports as file + short abstract, not full text.** Write an agent's
   report to the scratchpad and hand the next agent the path plus a 5–10 line
@@ -103,6 +110,17 @@ rules to avoid redundant re-reading of the same diff/files across agents:
   judgment. Keep full-capability models for judgment-heavy review
   (`architecture-reviewer`, security review), where under-powering the model
   risks missing real findings.
+- **Persist the plan, not the chat.** Once the user accepts an
+  Implementation Plan, save it as `<spec folder>/<slug>.plan.md`; the
+  implementation chat starts from that file. Full order and pause points:
+  [.claude/agents/README.md](.claude/agents/README.md) "Typical flow".
+- **Keep test logs out of context.** `implementer` runs only scoped tests
+  (`vitest related … --exclude '**/*.it.test.ts'`); full suites and
+  Docker-backed integration tests run once, through `test-runner`
+  (`haiku`), which returns a compact table instead of a log.
+- **Fix loops are targeted.** Findings go back to `implementer` in fix
+  mode; rerun only the agent that reported them, at most 2 rounds, then
+  stop and ask the user.
 - **Keep architecture-review and plan-verification as separate agents.**
   Their independence is what catches each other's blind spots — don't merge
   them purely to save tokens; that's a coverage trade-off, not a free win.

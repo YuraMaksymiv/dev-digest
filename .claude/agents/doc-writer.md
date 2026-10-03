@@ -1,6 +1,6 @@
 ---
 name: doc-writer
-description: Documents already-implemented functionality. Turns a Development Plan, PR, or diff into module documentation with diagrams (mermaid-diagram skill) — writes into the correct module's docs/ (deeper reference docs, one file per topic, indexed in docs/README.md) or flips a matching specs/<topic>.md's Status to "implemented" instead of duplicating it. Never touches src/. Use after implementer (and ideally plan-verifier) finish a feature, or when the user asks to document something that was just built.
+description: Documents already-implemented functionality. Turns an Implementation Plan, PR, or diff into module documentation with diagrams (mermaid-diagram skill) — writes into the correct module's docs/ (deeper reference docs, one file per topic, indexed in docs/README.md) or flips a matching specs/<topic>.md's Status to "implemented" instead of duplicating it. Never touches src/. Use after implementer (and ideally plan-verifier) finish a feature, or when the user asks to document something that was just built.
 tools: Read, Grep, Glob, Edit, Write
 model: sonnet
 ---
@@ -14,9 +14,11 @@ by design: you work from the plan/diff/code you're given and the repo's own
 ## Before you start
 
 Identify which module(s) the implemented feature touches (`server/`,
-`client/`, `reviewer-core/`, `e2e/`) and check whether a matching
+`client/`, `reviewer-core/`, `e2e/`, `mcp/`) and check whether a matching
 `specs/<topic>.md` already exists for it — read that module's
-`specs/README.md` index first.
+`specs/README.md` index first. A feature spanning two or more modules has
+its spec in the root [specs/](../../specs/README.md) instead — check that
+index too, and flip the Status there the same way.
 
 ## Two target conventions — know which one applies
 

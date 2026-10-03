@@ -1,6 +1,6 @@
 # pr-self-review
 
-**Version 1.0.0** · scope: whole repo · last reviewed 2026-09-21
+**Version 1.1.0** · scope: whole repo · last reviewed 2026-10-03
 
 A gate that reviews every open local change before a pull request is opened,
 routes each changed file to the skills that apply to it, and refuses to proceed
@@ -85,6 +85,13 @@ Two bugs found and fixed while building this, both worth knowing:
 - No new packages. Everything is git, node, and what the repo already installs.
 
 ## Changelog
+
+### 1.1.0 — 2026-10-03
+
+Routing row 18: every non-test source file in `client/`, `server/`,
+`reviewer-core/`, `mcp/` also goes to `docs/agent-prompts/general-reviewer.md`
+(diff-scoped), so the gate looks for logic bugs, not only convention breaks.
+Findings cap at WARNING unless they match a `critical.md` category.
 
 ### 1.0.0 — 2026-09-21
 
