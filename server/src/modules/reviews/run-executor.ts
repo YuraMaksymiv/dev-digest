@@ -11,6 +11,8 @@ import { taskLine, toSkillPromptBlock, renderIntentForPrompt, summarizePromptSec
 import { loadDiff } from './diff-loader.js';
 import { loadIntent } from './intent-loader.js';
 
+type ResolvedContext = Awaited<ReturnType<Container['projectContext']['resolve']>>;
+
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
   constructor() {
@@ -198,7 +200,12 @@ export class ReviewRunExecutor {
       // L02 — the agent's enabled skills, rendered as prompt blocks. Empty for
       // an agent with no skills, which keeps its prompt byte-identical to
       // pre-L02 (see the omit-when-empty spread below).
-      const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
+      const { blocks: skillBlocks, links: skillLinks } = await this.buildSkillBlocks(agent.id, runLog);
+
+      // Project Context — attached repo docs (agent + enabled skills), resolved
+      // once per run. Fail-soft: a resolver error never fails the run (AC-22).
+      const projectContext = await this.resolveProjectContext(agent.id, skillLinks, pull.repoId, runLog);
+      const specTexts = projectContext.texts;
 
       // ---- Observability: safe prompt-assembly log ---------------------------
       // Structured, content-free metadata for every section that WILL be sent
@@ -218,6 +225,11 @@ export class ReviewRunExecutor {
             section: 'skills',
             source: 'skills',
             content: skillBlocks.length > 0 ? skillBlocks.join('\n\n') : undefined,
+          },
+          {
+            section: 'project-context',
+            source: 'project-context',
+            content: specTexts.length > 0 ? specTexts.map((t) => t.text).join('\n\n') : undefined,
           },
           { section: 'repo-map', source: 'repo-map', content: repoMap },
           { section: 'callers', source: 'callers', content: callersDigest },
@@ -251,6 +263,8 @@ export class ReviewRunExecutor {
         // when the array is absent, so an agent with none is unchanged. Never
         // pass `skills: []`.
         ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
+        // Project Context — same omit-when-empty contract; never `specs: []`.
+        ...(specTexts.length > 0 ? { specs: specTexts } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -338,7 +352,8 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: projectContext.specs_read,
+        ...(projectContext.specs_detail.length > 0 ? { specs_detail: projectContext.specs_detail } : {}),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -385,22 +400,56 @@ export class ReviewRunExecutor {
    * The token count is per CALL, not per run: under `map-reduce` the whole block
    * is re-sent for every changed file.
    */
-  private async buildSkillBlocks(agentId: string, runLog: RunLogger): Promise<string[]> {
+  private async buildSkillBlocks(
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<{ blocks: string[]; links: Awaited<ReturnType<Container['agentsRepo']['enabledSkillsForPrompt']>> }> {
     let links;
     try {
       links = await this.agents.enabledSkillsForPrompt(agentId);
     } catch (err) {
       // Never let an enrichment break the run — surface only as a Live Log info.
       runLog.info(`skills: skipped — ${(err as Error).message}`);
-      return [];
+      return { blocks: [], links: [] };
     }
-    if (links.length === 0) return [];
+    if (links.length === 0) return { blocks: [], links: [] };
 
     const blocks = links.map((l) => toSkillPromptBlock(l.skill));
     const tokens = this.container.tokenizer.count(blocks.join('\n\n'));
     const names = links.map((l) => l.skill.name).join(', ');
     runLog.info(`skills: ${links.length} attached (+~${tokens} tokens/call) — ${names}`);
-    return blocks;
+    return { blocks, links };
+  }
+
+  /**
+   * Resolve the agent's attached project-context docs. Logs counts only — never
+   * doc text. The token count is per CALL: under `map-reduce` the block is
+   * re-sent for every changed file.
+   */
+  private async resolveProjectContext(
+    agentId: string,
+    links: { skill: { id: string; name: string } }[],
+    repoId: string,
+    runLog: RunLogger,
+  ): Promise<ResolvedContext> {
+    const empty: ResolvedContext = { texts: [], specs_detail: [], specs_read: [] };
+    try {
+      const resolved = await this.container.projectContext.resolve({
+        agentId,
+        skills: links.map((l) => ({ id: l.skill.id, name: l.skill.name })),
+        repoId,
+      });
+      if (resolved.specs_detail.length > 0) {
+        const tokens = this.container.tokenizer.count(resolved.texts.map((t) => t.text).join('\n\n'));
+        runLog.info(
+          `project-context: ${resolved.specs_read.length} of ${resolved.specs_detail.length} doc(s) injected (+~${tokens} tokens/call)`,
+        );
+      }
+      return resolved;
+    } catch (err) {
+      runLog.info(`project-context: skipped — ${(err as Error).message}`);
+      return empty;
+    }
   }
 
   /**

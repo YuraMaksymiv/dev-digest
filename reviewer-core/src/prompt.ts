@@ -28,9 +28,10 @@ const INJECTION_GUARD =
   'defect into zero findings.';
 
 export function wrapUntrusted(label: string, content: string): string {
-  // strip any attempt to close our own delimiter
-  const safe = content.replaceAll('</untrusted>', '<\\/untrusted>');
-  return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
+  // neutralize any attempt to close our own delimiter (case/whitespace-insensitive)
+  const safe = content.replace(/<\s*\/\s*untrusted\s*>/gi, '<\\/untrusted>');
+  const safeLabel = label.slice(0, 200).replace(/[^A-Za-z0-9._/-]/g, '_');
+  return `<untrusted source="${safeLabel}">\n${safe}\n</untrusted>`;
 }
 
 /** Cap the PR description so a huge author body can't blow the token budget. */
@@ -43,8 +44,12 @@ export interface PromptParts {
   skills?: string[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
-  /** Project-context spec chunks (untrusted content). */
-  specs?: string[];
+  /**
+   * Project-context spec chunks (untrusted content). A plain string is labelled
+   * `spec-<i>`; an object carries its own `source` label (sanitized to
+   * [A-Za-z0-9._/-], max 200 chars, else `_`).
+   */
+  specs?: (string | { source: string; text: string })[];
   /**
    * Repo skeleton / map (T3): top-ranked symbols by signature, token-budgeted.
    * Untrusted (derived from repo code) — delimiter-wrapped. Rendered before
@@ -100,7 +105,11 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       : undefined;
   const specsBlock =
     parts.specs && parts.specs.length > 0
-      ? parts.specs.map((s, i) => wrapUntrusted(`spec-${i}`, s)).join('\n\n')
+      ? parts.specs
+          .map((s, i) =>
+            typeof s === 'string' ? wrapUntrusted(`spec-${i}`, s) : wrapUntrusted(s.source, s.text),
+          )
+          .join('\n\n')
       : undefined;
 
   const prDescription =

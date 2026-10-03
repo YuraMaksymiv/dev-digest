@@ -37,8 +37,25 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
             <span>{t("trace.config.items", { count: trace.memory_pulled.length })}</span>
           </Row>
           <Row label={t("trace.config.specsRead")}>
-            <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
+            <div style={trace.specs_detail?.length ? s.specsList : s.specsWrap}>
+              {trace.specs_detail?.length ? (
+                trace.specs_detail.map((sp, i) => (
+                  <span key={i} style={s.specDetail}>
+                    <span className="mono" style={s.spec}>
+                      {sp.path}
+                    </span>
+                    <span className="mono" style={s.specMeta}>
+                      {t("trace.config.specsTokens", { count: sp.tokens })} ·{" "}
+                      {sp.source === "skill"
+                        ? t("trace.config.specFromSkill", { name: sp.source_name ?? "" })
+                        : t("trace.config.specFromAgent")}
+                    </span>
+                    {sp.status !== "read" && (
+                      <span style={s.specFlag}>{t(`trace.config.specStatus.${sp.status}`)}</span>
+                    )}
+                  </span>
+                ))
+              ) : trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
                 trace.specs_read.map((sp, i) => (
