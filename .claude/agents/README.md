@@ -325,10 +325,10 @@ full rule text for each agent lives in its own file.
 ## Typical flow
 
 Run manually: `spec-creator` → (you approve) → `implementation-planner` →
-save the plan → **`/impl <plan.md>`** ([skill](../skills/impl/SKILL.md)),
+save the plan → **`/run-plan <plan.md>`** ([skill](../skills/run-plan/SKILL.md)),
 which runs everything from `implementer` to `plan-verifier [acceptance]`,
 including the architecture fix rounds. `test-writer` is currently left out
-of `/impl` to save tokens; the full chain below shows where it slots back in.
+of `/run-plan` to save tokens; the full chain below shows where it slots back in.
 
 ```
 spec-creator  pass 1 → Discovery Report ──(user answers ∥ researcher ×N)──▶ pass 2 → spec
@@ -355,6 +355,8 @@ test-runner
 plan-verifier  [acceptance, model: sonnet]   every AC → code + passing AC-named test
         ▼
 doc-writer → spec Status: implemented · engineering-insights end-of-session check
+        ▼
+/workflow-retro   manual only, same session → proposals + section in docs/retro/ledger.md
 ```
 
 \* `security-reviewer` runs when the spec has a security NFR or the diff

@@ -1,11 +1,11 @@
 ---
-name: impl
-description: "Runs the Spec-Driven implementation pipeline for an already-approved spec and an already-written Implementation Plan: implementer(s) → test-runner → plan-verifier [tasks] → architecture review with fix iterations → final tests → plan-verifier [acceptance]. Does NOT write specs (spec-creator) or plans (implementation-planner) — those are run manually first. Invoked only explicitly as /impl."
+name: run-plan
+description: "Runs the Spec-Driven implementation pipeline for an already-approved spec and an already-written Implementation Plan: implementer(s) → test-runner → plan-verifier [tasks] → architecture review with fix iterations → final tests → plan-verifier [acceptance]. Does NOT write specs (spec-creator) or plans (implementation-planner) — those are run manually first. Invoked only explicitly as /run-plan."
 argument-hint: "<plan.md> [--mode multi|single] [--rounds N] [--design <path>…] [-- extra requirements]"
 disable-model-invocation: true
 ---
 
-# /impl — implement a planned spec
+# /run-plan — implement a planned spec
 
 You are the **orchestrator**. You never write application code yourself:
 every code change goes through `implementer`, every check through an
@@ -37,7 +37,7 @@ Arguments: `$ARGUMENTS`
 4. **Git.** Report the current branch and `git status --short`. Never switch
    branches, commit or push without the user's approval. A dirty tree is
    reported, not cleaned.
-5. Create the run folder `<scratchpad>/impl-<slug>/`. Every agent report is
+5. Create the run folder `<scratchpad>/run-plan-<slug>/`. Every agent report is
    saved there as `NN-<agent>.md`; you keep only a ≤10-line abstract of each.
 
 ## 1. Implement
@@ -115,7 +115,7 @@ Round loop, `r = 1 … --rounds`:
 Print, and save as `<run folder>/report.md`:
 
 ```markdown
-## /impl — <spec title>
+## /run-plan — <spec title>
 **Spec**: <path> · **Plan**: <path> · **Mode**: multi|single · **Branch**: <name>
 
 | Phase | Result | Rounds |
