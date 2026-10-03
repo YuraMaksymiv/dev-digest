@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { Finding, Intent, PrRef, RunDetail, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -30,6 +30,15 @@ export class ReviewRepository {
 
   getPull(workspaceId: string, prId: string): Promise<PullRow | undefined> {
     return pullRepo.getPull(this.db, workspaceId, prId);
+  }
+
+  /** Resolve a PR by `owner/name` + number; says whether the repo or the PR is missing. */
+  findPullByRepoAndNumber(
+    workspaceId: string,
+    fullName: string,
+    number: number,
+  ): Promise<{ found: PrRef } | { missing: 'repo' | 'pr' }> {
+    return pullRepo.findPullByRepoAndNumber(this.db, workspaceId, fullName, number);
   }
 
   getRepo(repoId: string): Promise<typeof t.repos.$inferSelect | undefined> {
@@ -85,6 +94,11 @@ export class ReviewRepository {
   /** All runs for a PR (any status), newest first — the PR run history. */
   listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]> {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
+  }
+
+  /** One agent run + agent/PR/repo context + review id. Workspace-scoped. */
+  getRunDetail(workspaceId: string, runId: string): Promise<RunDetail | undefined> {
+    return runRepo.getRunDetail(this.db, workspaceId, runId);
   }
 
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */

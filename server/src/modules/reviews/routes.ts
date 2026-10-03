@@ -1,16 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { RunRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { NotFoundError } from '../../platform/errors.js';
+import { AppError, NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
 
 /**
  * reviews module.
  *   POST   /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
+ *   GET    /runs/:id                                   → one run's status/cost/error + review_id (404 for non-agent runs)
+ *   GET    /pulls/lookup?repo=owner/name&number=N      → resolve an imported PR (no GitHub call; 404 says what to import)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   GET    /pulls/:id/smart-diff                        → files grouped by role + anchored findings
@@ -18,6 +21,10 @@ import { ReviewService } from './service.js';
  *   POST   /pulls/:id/intent                            → re-derive intent now (lightweight, no review run)
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
+const PullLookupQuery = z.object({
+  repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
+  number: z.coerce.number().int().positive(),
+});
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -118,6 +125,29 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     await getContext(container, req);
     await service.cancelRun(req.params.id);
     return { ok: true };
+  });
+
+  // ---- One run's state (read-only) ----------------------------------------
+  app.get('/runs/:id', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.getRunDetail(workspaceId, req.params.id);
+  });
+
+  // ---- Resolve an imported PR by owner/name + number ----------------------
+  // Static segment: find-my-way prefers it over `/pulls/:id`. Query is parsed
+  // manually so a malformed query is a 400 (schema.querystring would be 422).
+  app.get('/pulls/lookup', async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    const q = PullLookupQuery.safeParse(req.query);
+    if (!q.success) {
+      throw new AppError(
+        'invalid_query',
+        'Query must be ?repo=owner/name&number=<positive integer>',
+        400,
+        q.error.issues,
+      );
+    }
+    return service.lookupPull(workspaceId, q.data.repo, q.data.number);
   });
 
   // ---- Run trace (single document; A5 enriches with multi-agent/stats) ----

@@ -3,13 +3,25 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
+import { SEV } from "@devdigest/ui";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { type Line } from "../helpers";
-import { s, lineRowFor, lineSignFor } from "../styles";
+import { s, lineRowFor, lineSignFor, severityLabelFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 import { FindingCard } from "@/components/finding-card";
 import type { FindingActionKind, FindingRecord } from "@devdigest/shared";
+
+/** Highest-severity finding anchored to this line, CRITICAL first. */
+const SEVERITY_RANK = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 } as const;
+function topSeverity(findings: FindingRecord[] | undefined): keyof typeof SEVERITY_RANK | undefined {
+  if (!findings || findings.length === 0) return undefined;
+  return findings
+    .map((f) => f.severity as keyof typeof SEVERITY_RANK)
+    .filter((sev) => sev in SEVERITY_RANK)
+    .sort((a, b) => SEVERITY_RANK[a] - SEVERITY_RANK[b])[0];
+}
 
 export function CodeLine({
   ln,
@@ -34,8 +46,12 @@ export function CodeLine({
   repoFullName?: string | null;
   headSha?: string | null;
 }) {
+  const t = useTranslations("shell");
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
+
+  const sev = showFindings ? topSeverity(findings) : undefined;
+  const sevColor = sev ? SEV[sev].c : undefined;
 
   if (ln.kind === "hunk") {
     return (
@@ -55,7 +71,7 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div style={lineRowFor(ln.kind, sevColor)}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button
@@ -76,6 +92,11 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
+        {sev && (
+          <span className="mono" style={severityLabelFor(sevColor!)}>
+            {t(`diffViewer.severityLabel.${sev}`)}
+          </span>
+        )}
       </div>
 
       {commenting &&

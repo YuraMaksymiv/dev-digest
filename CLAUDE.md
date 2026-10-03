@@ -24,6 +24,7 @@ everywhere.
 | `client/` | `@devdigest/web` | Next.js 15 studio UI |
 | `reviewer-core/` | `@devdigest/reviewer-core` | Pure engine: diff → prompt → LLM → grounded findings |
 | `e2e/` | `@devdigest/e2e` | Deterministic browser flows (agent-browser, no LLM) |
+| `mcp/` | `@devdigest/mcp` | Local stdio MCP server exposing agents/runs/findings/conventions to Claude Code |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts, mirrored (not npm-published) into `client/src/vendor/shared` |
 | `docs/agent-prompts/` | — | Reference prompts for the built-in review agents |
 
@@ -110,7 +111,8 @@ rules to avoid redundant re-reading of the same diff/files across agents:
 
 Each module has its own `CLAUDE.md`, `README.md`, `docs/`, `specs/`,
 `INSIGHTS.md`: [server](server/CLAUDE.md) · [client](client/CLAUDE.md) ·
-[reviewer-core](reviewer-core/CLAUDE.md) · [e2e](e2e/CLAUDE.md)
+[reviewer-core](reviewer-core/CLAUDE.md) · [e2e](e2e/CLAUDE.md) ·
+[mcp](mcp/CLAUDE.md)
 
 Always read a module's `INSIGHTS.md` before starting work in it, via the
 [`engineering-insights`](.claude/skills/engineering-insights/SKILL.md) skill
