@@ -3,7 +3,7 @@ export const ONBOARDING_SCHEMA_NAME = 'onboarding_tour';
 export const ONBOARDING_PROMPT_FILE = 'onboarding.system.md';
 
 /** Reading-path / LLM shortlist size (K). */
-export const SHORTLIST_SIZE = 30;
+export const SHORTLIST_SIZE = 15;
 export const MAX_INPUT_TOKENS = 12_000;
 export const MAX_OUTPUT_TOKENS = 4_000;
 export const LLM_TIMEOUT_MS = 60_000;

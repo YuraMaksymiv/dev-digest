@@ -92,16 +92,16 @@ describe('onboarding ranking (pure)', () => {
     expect(h.get('d')).toBe(1);
   });
 
-  it('AC-14: orders by score desc then path asc, limits to 30, excludes test/config/generated/migration paths', () => {
+  it('AC-14: orders by score desc then path asc, limits to 15, excludes test/config/generated/migration paths', () => {
     const junk = [
       'src/a.test.ts', 'src/a.spec.ts', 'test/helper.ts', 'vite.config.ts', 'src/generated/api.ts',
       'src/db/migrations/0001_x.sql', 'tests/e2e.ts',
     ].map((path) => ({ path, rank: 100 }));
     const real = Array.from({ length: 40 }, (_, i) => ({ path: `src/f${String(i).padStart(2, '0')}.ts`, rank: 1 }));
     const out = scoreFiles([...junk, ...real, { path: 'src/top.ts', rank: 2 }], new Map());
-    expect(out).toHaveLength(30);
+    expect(out).toHaveLength(15);
     expect(out[0]!.path).toBe('src/top.ts');
-    expect(out.slice(1).map((o) => o.path)).toEqual(real.slice(0, 29).map((r) => r.path));
+    expect(out.slice(1).map((o) => o.path)).toEqual(real.slice(0, 14).map((r) => r.path));
     const paths = out.map((o) => o.path);
     for (const j of junk) expect(paths).not.toContain(j.path);
   });

@@ -1,7 +1,6 @@
 {
   "title": "Onboarding Tour",
   "page": {
-    "crumbWorkspace": "Workspace",
     "crumbOnboarding": "Onboarding Tour",
     "headingPrefix": "Onboarding for ",
     "repoFallback": "this repository",

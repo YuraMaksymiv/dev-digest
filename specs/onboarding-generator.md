@@ -71,7 +71,7 @@ UX improvements: P1 status banner **accepted** (required); P2 cost chip **accept
 | D1 | The five new sections replace the old set; old prompt and `onboarding.json` are rewritten | one coherent product definition | user Q1 |
 | D2 | Typed per-section contract + `version`; legacy rows (fail to parse as v2) are ignored and overwritten on next generation | structured rows feed Open/copy buttons and are checkable | user Q2 |
 | D3 | `hotness` = percentile ∈ [0,1] of `log1p(PR touches)` over PRs with `opened_at` in the last 90 days, counted from `pr_files`; 0 when no PRs. `score = pr_norm × (1 + hotness)`, `pr_norm` = PageRank / max PageRank | no clone/indexer change; bounded hotness never zeroes a central file | user Q3, R1 |
-| D4 | Index cap unchanged. LLM input: top K = 30 files by score + token-capped facts bundle; file bodies only for README and manifests (heads, truncated) | large-repo bound | user Q4, R2 |
+| D4 | Index cap unchanged. LLM input: top K = 15 files by score + token-capped facts bundle; file bodies only for README and manifests (heads, truncated) | large-repo bound | user Q4, R2 |
 | D5 | Exactly one structured request: `maxRetries: 0`; failures never trigger an automatic second call | "one call" promise | user Q5, `openrouter.ts:61` |
 | D6 | Usage persisted on the `onboarding` row as **nullable** new columns (`model`, `tokens_in`, `tokens_out`, `cost_usd`, `llm_calls`, `duration_ms`, `generated_sha`) via a generated migration; a log line is emitted at the same time | persist, don't recompute (run-cost precedent); NOT NULL without default would fail on non-empty tables (server INSIGHTS 2026-09-22) | user Q5, `run-cost.md` D1 |
 | D7 | Skeleton is computed on read, never stored | nothing to go stale | user Q6 |
@@ -145,7 +145,7 @@ Failure propagation: LLM error/timeout/validation failure → HTTP 200 with skel
 | AC-11 | Unwanted | If a clone path to read contains a `.git` segment or resolves (realpath) outside the clone or through a symlink, then the onboarding module shall skip the file. | C6 |
 | AC-12 | Ubiquitous | The onboarding module shall compute each reading-path `score` as `(PageRank / max PageRank) × (1 + hotness)`. | C3 |
 | AC-13 | Ubiquitous | The onboarding module shall compute `hotness` as the percentile in [0,1] of `log1p(PR touches)` over PRs with `opened_at` in the last 90 days, and 0 for every file when no such PR exists. | C3 |
-| AC-14 | Ubiquitous | The onboarding module shall order the reading path by `score` descending then path ascending, limited to 30 files, excluding test/config/generated/migration paths. | C3 |
+| AC-14 | Ubiquitous | The onboarding module shall order the reading path by `score` descending then path ascending, limited to 15 files, excluding test/config/generated/migration paths. | C3 |
 | AC-15 | Ubiquitous | The onboarding module shall derive critical paths from `repoIntel.getCriticalPaths`. | C4 |
 | AC-16 | Ubiquitous | The onboarding module shall build the first-task candidate shortlist from TODO/FIXME occurrences, source files without a sibling test, and small leaf files, excluding vendor, generated and lock files. | C3 |
 | AC-17 | Event | When `POST /repos/:id/onboarding/generate` is called on a usable index, the API shall issue exactly one structured request with `maxRetries: 0` using the model from `resolveFeatureModel(…, 'onboarding')`. | C4 |
@@ -229,4 +229,5 @@ Public share endpoint; auto-generate/regenerate; monorepo per-package tours; git
 | Date | Change | Reason / source |
 |---|---|---|
 | 2026-10-04 | Initial spec, status `clarified` | Pass 2 after user answers; R1/R2 research |
+| 2026-10-04 | AC-14 / D4: reading path and LLM shortlist capped at 15 (was 30); breadcrumb shows `owner/repo › Onboarding Tour` | User feedback after demo — 30 rows too long |
 | 2026-10-04 | §8: reviewer-core/LLM adapters change for `maxRetries: 0` (single HTTP request) | Planner finding: SDK + `withRetry` retries break NFR-1; user approved |

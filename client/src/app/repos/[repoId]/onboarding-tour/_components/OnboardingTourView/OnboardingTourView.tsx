@@ -49,7 +49,10 @@ export function OnboardingTourView() {
   };
 
   const repoName = activeRepo?.full_name?.split("/").pop() ?? t("page.repoFallback");
-  const crumb = [{ label: t("page.crumbWorkspace") }, { label: t("page.crumbOnboarding") }];
+  const crumb = [
+    ...(activeRepo ? [{ label: activeRepo.full_name }] : []),
+    { label: t("page.crumbOnboarding") },
+  ];
 
   if (repoNotFound) {
     return (
