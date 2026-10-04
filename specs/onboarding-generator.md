@@ -101,7 +101,7 @@ Collected command set (for validation): install command by lockfile, `package.js
 
 - **client** → `GET`/`POST` above (React Query hook in `src/lib/hooks/`); renders, copies, opens links. Computes nothing about ranking.
 - **server `modules/onboarding/`** (routes · service · helpers · constants · repository): validates input, then resolves workspace (`getContext` after `safeParse`, server INSIGHTS 2026-10-04), reads index via `repoIntel.*`, reads PR touches, reads allowed clone files, builds facts + skeleton, makes the one LLM call through `container.llm(provider).completeStructured` with `resolveFeatureModel(…, 'onboarding')`, post-validates, persists, logs.
-- **reviewer-core**: unchanged (LLM provider used as-is).
+- **reviewer-core**: `OpenRouterProvider` (and the server OpenAI/Anthropic adapters) must send a single HTTP request and honour `timeoutMs` when `maxRetries: 0`; default behaviour unchanged (plan T3).
 - **mcp / e2e**: mcp out of scope; e2e covers skeleton/empty states only (no LLM).
 
 ```mermaid
@@ -229,3 +229,4 @@ Public share endpoint; auto-generate/regenerate; monorepo per-package tours; git
 | Date | Change | Reason / source |
 |---|---|---|
 | 2026-10-04 | Initial spec, status `clarified` | Pass 2 after user answers; R1/R2 research |
+| 2026-10-04 | §8: reviewer-core/LLM adapters change for `maxRetries: 0` (single HTTP request) | Planner finding: SDK + `withRetry` retries break NFR-1; user approved |
