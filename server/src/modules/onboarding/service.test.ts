@@ -43,7 +43,7 @@ function make(opts: { status?: 'full' | 'degraded'; completeStructured?: ReturnT
 }
 
 describe('OnboardingService', () => {
-  it('makes zero LLM calls on a degraded index and logs one line', async () => {
+  it('AC-26, AC-22: makes zero LLM calls on a degraded index and logs one line', async () => {
     const { svc, logs, complete, model } = make({ status: 'degraded' });
     const res = await svc.generate('w', 'r1', model);
     expect(complete).not.toHaveBeenCalled();
@@ -53,7 +53,7 @@ describe('OnboardingService', () => {
     expect(logs[0]).toMatchObject({ outcome: 'skipped_index_degraded', llm_calls: 0 });
   });
 
-  it('single-flights concurrent generations into one request and persists once', async () => {
+  it('AC-23, NFR-1, AC-17: single-flights concurrent generations into one request and persists once', async () => {
     const complete = vi.fn(async (_req: unknown) => ({
       data: {
         architecture: { summary_md: 'hi', diagram: null },
@@ -73,7 +73,7 @@ describe('OnboardingService', () => {
     expect(logs[0]).toMatchObject({ outcome: 'success', tokens_in: 10, cost_usd: 0.01, llm_calls: 1 });
   });
 
-  it('returns the skeleton with invalid_output and persists nothing', async () => {
+  it('AC-25: returns the skeleton with invalid_output and persists nothing', async () => {
     const complete = vi.fn(async () => {
       throw new Error('OpenRouter structured output failed schema validation for x');
     });
