@@ -1,6 +1,6 @@
 # Spec — Onboarding Generator (Onboarding Tour page)
 
-Status: **clarified** (2026-10-04) · Scope: `server/` + `client/` (contracts in both `@devdigest/shared` copies) · Location: `specs/onboarding-generator.md`
+Status: **approved** (2026-10-04) · Scope: `server/` + `client/` (contracts in both `@devdigest/shared` copies) · Location: `specs/onboarding-generator.md`
 
 ## 1. Summary
 
