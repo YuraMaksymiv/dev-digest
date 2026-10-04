@@ -30,35 +30,36 @@ function badRequest(code: string, message: string): AppError {
 
 export default async function projectContextRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = app.container.projectContextService;
+  // Resolved per request (not at registration) so validation 400s never touch db-backed deps.
+  const svc = () => app.container.projectContextService;
 
   app.get('/repos/:repoId/context/docs', { schema: { params: RepoParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return service.listDocs(workspaceId, req.params.repoId);
+    return svc().listDocs(workspaceId, req.params.repoId);
   });
 
   app.get('/repos/:repoId/context/docs/content', { schema: { params: RepoParams } }, async (req) => {
-    const { workspaceId } = await getContext(app.container, req);
     const q = ContentQuery.safeParse(req.query);
     if (!q.success) throw badRequest('invalid_path', 'A `path` query parameter is required');
-    return service.readContent(workspaceId, req.params.repoId, q.data.path);
+    const { workspaceId } = await getContext(app.container, req);
+    return svc().readContent(workspaceId, req.params.repoId, q.data.path);
   });
 
   const registerOwner = (prefix: 'agents' | 'skills', kind: OwnerKind) => {
     app.get(`/${prefix}/:id/context`, { schema: { params: IdParams } }, async (req) => {
-      const { workspaceId } = await getContext(app.container, req);
       const q = OwnerQuery.safeParse(req.query);
       if (!q.success) throw badRequest('invalid_request', 'A valid `repo_id` query parameter is required');
-      return service.getAttachments(workspaceId, kind, req.params.id, q.data.repo_id);
+      const { workspaceId } = await getContext(app.container, req);
+      return svc().getAttachments(workspaceId, kind, req.params.id, q.data.repo_id);
     });
 
     app.put(`/${prefix}/:id/context`, { schema: { params: IdParams } }, async (req) => {
-      const { workspaceId } = await getContext(app.container, req);
       const body = ContextAttachmentPut.safeParse(req.body);
       if (!body.success || !z.string().uuid().safeParse(body.data.repo_id).success) {
         throw badRequest('invalid_request', 'Body must be { repo_id: uuid, paths: string[] }');
       }
-      return service.putAttachments(workspaceId, kind, req.params.id, body.data);
+      const { workspaceId } = await getContext(app.container, req);
+      return svc().putAttachments(workspaceId, kind, req.params.id, body.data);
     });
   };
   registerOwner('agents', 'agent');

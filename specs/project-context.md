@@ -1,6 +1,6 @@
 # Spec — Project Context (attach repo markdown docs to agents and skills)
 
-Status: **approved** (2026-10-03) · Scope: `server/` + `client/` + `reviewer-core/` (+ both `@devdigest/shared` copies) ·
+Status: **implemented** (2026-10-04; AC-3 deferred) · Scope: `server/` + `client/` + `reviewer-core/` (+ both `@devdigest/shared` copies) ·
 Location: `specs/project-context.md`
 
 ## 1. Summary
@@ -193,3 +193,4 @@ Editing, creating, uploading docs (rejected: view-only, P1 accepted); coverage r
 | 2026-10-03 | Initial draft | Pass 2: user answers (Q1=A, P1/P3/P4/P5 accepted), R1, R2, code grounding |
 | 2026-10-03 | M1–M7 resolved with recommended defaults; status → approved | User decision |
 | 2026-10-03 | AC-3 deferred, AC-2/D8 reworded to constant roots; planner minor assumptions accepted (footer totals, over_budget tokens, arrow reorder in scope, IGNORE_DIRS, binary → unreadable, empty PUT clears, no rate limit); nav.ts edit approved for AC-43 | Implementation planning, user decision |
+| 2026-10-04 | Status → implemented (all ACs verified except deferred AC-3). Behavior as built: symlink escape and duplicate PUT paths answer 400 `invalid_path`; per-doc skip info log; `[truncated]` marker counted inside the per-doc cap; validation runs before `getContext`; one container-owned `ProjectContextService`. Server reference: [server/docs/project-context.md](../server/docs/project-context.md) | Implementation + follow-up fixes (commit 561e83e + uncommitted) |

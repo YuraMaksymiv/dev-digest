@@ -48,11 +48,11 @@ describe('truncateHead', () => {
   it('returns text untouched under the cap', () => {
     expect(truncateHead('abcd', 10, count)).toEqual({ text: 'abcd', tokens: 1, truncated: false });
   });
-  it('keeps the largest prefix within the cap', () => {
+  it('AC-20: keeps the largest prefix and appends [truncated] within the cap', () => {
     const r = truncateHead('x'.repeat(100), 5, count);
     expect(r.truncated).toBe(true);
-    expect(r.text.length).toBe(20);
-    expect(r.tokens).toBe(5);
+    expect(r.text.endsWith('[truncated]')).toBe(true);
+    expect(r.tokens).toBeLessThanOrEqual(5);
   });
 });
 

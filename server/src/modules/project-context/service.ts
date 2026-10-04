@@ -48,6 +48,7 @@ export interface ProjectContextDeps {
 type ReadOutcome =
   | { kind: 'ok'; text: string; fileTruncated: boolean }
   | { kind: 'missing' }
+  | { kind: 'invalid' }
   | { kind: 'unreadable' };
 
 const NOOP_LOG: ContextLogger = { info() {}, warn() {} };
@@ -99,13 +100,13 @@ export class ProjectContextService implements ProjectContextResolver {
    * in after listing must not escape the clone). Reads at most MAX_FILE_BYTES.
    */
   private async readDoc(root: string, path: string): Promise<ReadOutcome> {
-    if (!validateDocPath(path)) return { kind: 'unreadable' };
+    if (!validateDocPath(path)) return { kind: 'invalid' };
     try {
       const rootReal = await realpath(root);
       const real = await realpath(join(root, path));
-      if (!real.startsWith(rootReal + sep)) return { kind: 'unreadable' };
+      if (!real.startsWith(rootReal + sep)) return { kind: 'invalid' };
       const realRel = relative(rootReal, real).split(sep).join('/');
-      if (!validateDocPath(realRel) || realRel.split('/').includes('.git')) return { kind: 'unreadable' };
+      if (!validateDocPath(realRel) || realRel.split('/').includes('.git')) return { kind: 'invalid' };
       const pre = await lstat(real);
       if (!pre.isFile()) return { kind: 'unreadable' };
       const fh = await open(real, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
@@ -202,6 +203,7 @@ export class ProjectContextService implements ProjectContextResolver {
     const repo = await this.requireRepo(workspaceId, repoId);
     const outcome = await this.readDoc(this.rootFor(repo), valid);
     if (outcome.kind === 'missing') throw new NotFoundError('Document not found');
+    if (outcome.kind === 'invalid') throw invalidPath();
     if (outcome.kind === 'unreadable') throw new AppError('unreadable', 'Document cannot be read', 422);
     const tokens = truncateHead(outcome.text, MAX_TOKENS_PER_DOC, this.count).tokens;
     return { path: valid, content: outcome.text, tokens };
@@ -249,7 +251,8 @@ export class ProjectContextService implements ProjectContextResolver {
       if (!valid) throw invalidPath();
       paths.push(valid);
     }
-    await this.repo.replaceAttachments(kind, ownerId, body.repo_id, [...new Set(paths)]);
+    if (new Set(paths).size !== paths.length) throw invalidPath();
+    await this.repo.replaceAttachments(kind, ownerId, body.repo_id, paths);
     return this.getAttachments(workspaceId, kind, ownerId, body.repo_id);
   }
 
@@ -277,9 +280,14 @@ export class ProjectContextService implements ProjectContextResolver {
       const candidates = await mapLimit(unique, READ_CONCURRENCY, async (ref): Promise<Candidate> => {
         const outcome = await this.readDoc(root, ref.path);
         if (outcome.kind !== 'ok') {
-          return { ...ref, status: outcome.kind, text: '', tokens: 0 };
+          const status = outcome.kind === 'missing' ? 'missing' : 'unreadable';
+          this.log.info(
+            { repoId: input.repoId, path: ref.path, status, source: ref.source },
+            'project-context doc skipped',
+          );
+          return { ...ref, status, text: '', tokens: 0 };
         }
-        const cut = truncateHead(outcome.text, MAX_TOKENS_PER_DOC, this.count);
+        const cut = truncateHead(outcome.text, MAX_TOKENS_PER_DOC, this.count, outcome.fileTruncated);
         return {
           ...ref,
           status: cut.truncated || outcome.fileTruncated ? 'truncated' : 'read',

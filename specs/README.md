@@ -10,4 +10,4 @@ Status lifecycle: `draft` (open `[NEEDS CLARIFICATION]` markers) →
 
 | Spec | Modules | Status |
 |---|---|---|
-| [project-context.md](project-context.md) — attach repo markdown docs to agents/skills, inject as untrusted `## Project context`, show in run trace | server, client, reviewer-core | approved |
+| [project-context.md](project-context.md) — attach repo markdown docs to agents/skills, inject as untrusted `## Project context`, show in run trace | server, client, reviewer-core | implemented |

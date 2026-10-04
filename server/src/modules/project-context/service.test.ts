@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ProjectContextService } from './service.js';
 import type { ProjectContextRepository } from './repository.js';
+import { MAX_TOKENS_PER_DOC } from './constants.js';
 
 let root: string;
 let outside: string;
@@ -84,13 +85,13 @@ describe('readContent', () => {
       await expect(makeService().readContent('w', 'r', p)).rejects.toMatchObject({ code: 'invalid_path', statusCode: 400 });
     }
   });
-  it('refuses a symlink escaping the clone', async () => {
-    await expect(makeService().readContent('w', 'r', 'specs/link.md')).rejects.toMatchObject({ code: 'unreadable' });
-    await expect(makeService().readContent('w', 'r', 'specs/linkdir/secret.md')).rejects.toMatchObject({ code: 'unreadable' });
+  it('AC-9: refuses a symlink escaping the clone with 400 invalid_path', async () => {
+    await expect(makeService().readContent('w', 'r', 'specs/link.md')).rejects.toMatchObject({ code: 'invalid_path', statusCode: 400 });
+    await expect(makeService().readContent('w', 'r', 'specs/linkdir/secret.md')).rejects.toMatchObject({ code: 'invalid_path', statusCode: 400 });
   });
-  it('refuses an in-clone symlink that targets .git', async () => {
-    await expect(makeService().readContent('w', 'r', 'specs/gitcfg.md')).rejects.toMatchObject({ code: 'unreadable' });
-    await expect(makeService().readContent('w', 'r', 'specs/gitdoc.md')).rejects.toMatchObject({ code: 'unreadable' });
+  it('AC-9: refuses an in-clone symlink that targets .git with 400 invalid_path', async () => {
+    await expect(makeService().readContent('w', 'r', 'specs/gitcfg.md')).rejects.toMatchObject({ code: 'invalid_path', statusCode: 400 });
+    await expect(makeService().readContent('w', 'r', 'specs/gitdoc.md')).rejects.toMatchObject({ code: 'invalid_path', statusCode: 400 });
   });
   it('404s a missing file and reads a good one', async () => {
     await expect(makeService().readContent('w', 'r', 'specs/zzz.md')).rejects.toMatchObject({ statusCode: 404 });
@@ -128,6 +129,39 @@ describe('resolve', () => {
     expect(r.texts[0]).toEqual({ source: 'specs/a.md', text: 'hello world' });
   });
 
+  it('AC-19: logs one info line per skipped doc without doc text', async () => {
+    const infos: unknown[][] = [];
+    const repo = {
+      getRepoRef: async () => ({ id: 'r', owner: 'o', name: 'n' }),
+      getAttachments: async () => [
+        { path: 'specs/gone.md', position: 0 },
+        { path: 'specs/bin.md', position: 1 },
+        { path: 'specs/a.md', position: 2 },
+      ],
+      getSkillAttachments: async () => new Map(),
+    } as unknown as ProjectContextRepository;
+    const svc = new ProjectContextService({
+      repo,
+      git: { clonePathFor: () => root },
+      tokenizer: { count: (s) => Math.ceil(s.length / 4) },
+      log: { info: (...a) => void infos.push(a), warn() {} },
+    });
+    await svc.resolve({ agentId: 'a', skills: [], repoId: 'r' });
+    const skipped = infos.filter((a) => a[1] === 'project-context doc skipped');
+    expect(skipped.map((a) => a[0])).toEqual([
+      { repoId: 'r', path: 'specs/gone.md', status: 'missing', source: 'agent' },
+      { repoId: 'r', path: 'specs/bin.md', status: 'unreadable', source: 'agent' },
+    ]);
+  });
+
+  it('AC-20: truncated doc text ends with [truncated] and stays within the cap', async () => {
+    const svc = makeService({ getAttachments: async () => [{ path: 'specs/big.md', position: 0 }] });
+    const r = await svc.resolve({ agentId: 'a', skills: [], repoId: 'r' });
+    expect(r.specs_detail[0]?.status).toBe('truncated');
+    expect(r.texts[0]?.text.endsWith('[truncated]')).toBe(true);
+    expect(r.specs_detail[0]?.tokens).toBeLessThanOrEqual(MAX_TOKENS_PER_DOC);
+  });
+
   it('is fail-soft and logs without doc text', async () => {
     warns.length = 0;
     const svc = makeService({ getAttachments: async () => { throw new Error('db down'); } });
@@ -138,6 +172,15 @@ describe('resolve', () => {
 });
 
 describe('putAttachments', () => {
+  it('AC-14: rejects duplicate paths without writing', async () => {
+    let called = false;
+    const svc = makeService({ replaceAttachments: async () => { called = true; } });
+    await expect(
+      svc.putAttachments('w', 'agent', 'a', { repo_id: 'r', paths: ['specs/a.md', 'specs/a.md'] }),
+    ).rejects.toMatchObject({ code: 'invalid_path', statusCode: 400 });
+    expect(called).toBe(false);
+  });
+
   it('rejects bad paths before touching the repository', async () => {
     let called = false;
     const svc = makeService({ replaceAttachments: async () => { called = true; } });

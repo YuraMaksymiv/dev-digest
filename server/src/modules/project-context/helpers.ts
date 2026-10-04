@@ -30,32 +30,37 @@ export function rootTypeOf(path: string): ContextDocRoot | null {
   return null;
 }
 
+export const TRUNCATION_MARKER = '\n\n[truncated]';
+
 /**
- * Largest prefix of `text` whose token count is <= cap (binary search on the
- * character length; ~log2(n) `count` calls).
+ * Largest prefix of `text` whose token count, including the appended
+ * `[truncated]` marker, is <= cap (binary search on the character length).
+ * `force` appends the marker even when the text itself fits (file was cut at read time).
  */
 export function truncateHead(
   text: string,
   cap: number,
   count: (s: string) => number,
+  force = false,
 ): { text: string; tokens: number; truncated: boolean } {
   const full = count(text);
-  if (full <= cap) return { text, tokens: full, truncated: false };
+  if (full <= cap && !force) return { text, tokens: full, truncated: false };
+  const budget = Math.max(0, cap - count(TRUNCATION_MARKER));
   let lo = 0;
   let hi = text.length;
-  let best = { text: '', tokens: 0 };
+  let best = '';
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2);
     const slice = text.slice(0, mid);
-    const tokens = count(slice);
-    if (tokens <= cap) {
-      best = { text: slice, tokens };
+    if (count(slice) <= budget) {
+      best = slice;
       lo = mid + 1;
     } else {
       hi = mid - 1;
     }
   }
-  return { ...best, truncated: true };
+  const out = best + TRUNCATION_MARKER;
+  return { text: out, tokens: count(out), truncated: full > cap };
 }
 
 export function isBinary(text: string): boolean {
