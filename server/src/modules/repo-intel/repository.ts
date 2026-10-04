@@ -530,6 +530,18 @@ export class RepoIntelRepository {
       );
   }
 
+  /** Every file with at least one endpoint fact. */
+  async getEndpointFacts(repoId: string): Promise<{ path: string; endpoints: string[] }[]> {
+    const rows = await this.db
+      .select({ path: t.fileFacts.filePath, endpoints: t.fileFacts.endpoints })
+      .from(t.fileFacts)
+      .where(and(eq(t.fileFacts.repoId, repoId), sql`jsonb_array_length(${t.fileFacts.endpoints}) > 0`));
+    return rows.map((r) => ({
+      path: r.path,
+      endpoints: Array.isArray(r.endpoints) ? (r.endpoints as string[]) : [],
+    }));
+  }
+
   /** Per-file facts (endpoints/crons) for the given files. */
   async getFileFacts(repoId: string, files: string[]): Promise<IndexerFileFactsRow[]> {
     if (files.length === 0) return [];

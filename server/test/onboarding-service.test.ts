@@ -62,7 +62,6 @@ function make(o: Opts = {}) {
     getRepoInWorkspace: async () => (o.repoExists === false ? null : { id: 'r1', owner: 'o', name: 'n', fullName: 'o/n' }),
     getStored: async () => (o.stored === undefined ? null : o.stored),
     getPrTouches: async () => new Map(),
-    getFileFacts: async () => (o.endpoints ?? []).map((e) => ({ endpoints: [e] })),
     upsertTour: upsert,
   } as unknown as OnboardingRepository;
   const complete = o.complete ?? vi.fn(async (_req: unknown) => llmResult());
@@ -75,6 +74,7 @@ function make(o: Opts = {}) {
         ({ status: 'full', filesIndexed: 2, filesSkipped: 3, lastIndexedSha: 'sha1', ...o.state }) as never,
       getRankedFiles: async () => o.ranked ?? [{ path: 'src/a.ts', rank: 2 }, { path: 'src/b.ts', rank: 1 }],
       getCriticalPaths,
+      getEndpointFacts: async () => (o.endpoints ?? []).map((e) => ({ path: 'x', endpoints: [e as string] })),
     },
     git: { clonePathFor: () => o.cloneRoot ?? root },
     tokenizer: o.tokenizer ?? { count: (s) => Math.ceil(s.length / 4) },

@@ -171,4 +171,6 @@ export interface RepoIntel {
   getCriticalPaths(repoId: string): Promise<string[][]>;
   /** Every ranked file (unfiltered), rank desc. `[]` when the flag is off. */
   getRankedFiles(repoId: string, limit?: number): Promise<{ path: string; rank: number }[]>;
+  /** Files that declare HTTP endpoints (`METHOD /path`). `[]` when the flag is off. */
+  getEndpointFacts(repoId: string): Promise<{ path: string; endpoints: string[] }[]>;
 }

@@ -22,7 +22,6 @@ function make(opts: { status?: 'full' | 'degraded'; completeStructured?: ReturnT
     getRepoInWorkspace: async () => ({ id: 'r1', owner: 'o', name: 'n', fullName: 'o/n' }),
     getStored: async () => null,
     getPrTouches: async () => new Map(),
-    getFileFacts: async () => [],
     upsertTour: upsert,
   } as unknown as OnboardingRepository;
   const complete = opts.completeStructured ?? vi.fn();
@@ -32,6 +31,7 @@ function make(opts: { status?: 'full' | 'degraded'; completeStructured?: ReturnT
       getIndexState: async () => ({ status: opts.status ?? 'full', filesIndexed: 1, filesSkipped: 0, lastIndexedSha: 'sha1' }) as never,
       getRankedFiles: async () => [{ path: 'src/a.ts', rank: 1 }],
       getCriticalPaths: async () => [['src/a.ts']],
+      getEndpointFacts: async () => [],
     },
     git: { clonePathFor: () => root },
     tokenizer: { count: (s) => Math.ceil(s.length / 4) },

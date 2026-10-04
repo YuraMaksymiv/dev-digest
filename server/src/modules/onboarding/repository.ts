@@ -5,8 +5,7 @@ import * as t from '../../db/schema.js';
 
 /**
  * onboarding data-access. Owns the `onboarding` table; reads `repos`
- * (workspace scoping), `pull_requests` + `pr_files` (hotness) and `file_facts`
- * (routes). Row shapes are declared structurally so helpers never import them.
+ * (workspace scoping), `pull_requests` + `pr_files` (hotness). Row shapes are declared structurally so helpers never import them.
  */
 
 export interface RepoRefRow {
@@ -78,13 +77,6 @@ export class OnboardingRepository {
       .where(and(eq(t.pullRequests.repoId, repoId), gte(t.pullRequests.openedAt, since)))
       .groupBy(t.prFiles.path);
     return new Map(rows.map((r) => [r.path, r.touches]));
-  }
-
-  async getFileFacts(repoId: string): Promise<{ endpoints: unknown }[]> {
-    return this.db
-      .select({ endpoints: t.fileFacts.endpoints })
-      .from(t.fileFacts)
-      .where(and(eq(t.fileFacts.repoId, repoId), sql`jsonb_array_length(${t.fileFacts.endpoints}) > 0`));
   }
 
   /**

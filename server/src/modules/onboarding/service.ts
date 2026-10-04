@@ -63,7 +63,7 @@ import type {
 
 export interface OnboardingDeps {
   repo: OnboardingRepository;
-  repoIntel: Pick<RepoIntel, 'getIndexState' | 'getRankedFiles' | 'getCriticalPaths'>;
+  repoIntel: Pick<RepoIntel, 'getIndexState' | 'getRankedFiles' | 'getCriticalPaths' | 'getEndpointFacts'>;
   git: Pick<GitClient, 'clonePathFor'>;
   tokenizer: TokenCounter;
   llm: LlmResolver;
@@ -174,11 +174,13 @@ export class OnboardingService {
     repoId: string,
     resolveModel: ModelResolver,
   ): Promise<OnboardingResponse> {
-    const base = await this.loadBase(workspaceId, repoId);
-    const existing = this.inflight.get(repoId);
+    const key = `${workspaceId}:${repoId}`;
+    const existing = this.inflight.get(key);
     if (existing) return existing;
-    const run = this.runGeneration(workspaceId, base, resolveModel).finally(() => this.inflight.delete(repoId));
-    this.inflight.set(repoId, run);
+    const run = this.loadBase(workspaceId, repoId)
+      .then((base) => this.runGeneration(workspaceId, base, resolveModel))
+      .finally(() => this.inflight.delete(key));
+    this.inflight.set(key, run);
     return run;
   }
 
@@ -257,6 +259,7 @@ export class OnboardingService {
     }
 
     let requested = false;
+    let spent = { tokensIn: 0, tokensOut: 0, costUsd: null as number | null };
     try {
       const choice = await resolveModel(workspaceId);
       model = choice.model;
@@ -278,6 +281,7 @@ export class OnboardingService {
         }),
         LLM_TIMEOUT_MS + 2_000,
       );
+      spent = { tokensIn: res.tokensIn, tokensOut: res.tokensOut, costUsd: res.costUsd };
 
       const tour = validateLlmTour(res.data, {
         allowedPaths: new Set(art.ranked.map((r) => r.path)),
@@ -327,7 +331,7 @@ export class OnboardingService {
       if (err instanceof NotFoundError) throw err;
       const invalid = /schema validation/i.test((err as Error)?.message ?? '');
       const kind = invalid ? 'invalid_output' : 'llm_failed';
-      emit(kind, { tokensIn: 0, tokensOut: 0, costUsd: null, llmCalls: requested ? 1 : 0 }, (err as Error)?.name);
+      emit(kind, { ...spent, llmCalls: requested ? 1 : 0 }, (err as Error)?.name);
       return this.fallback(base, art, { kind, reason: null });
     }
   }
@@ -430,7 +434,7 @@ export class OnboardingService {
       this.repoIntel.getRankedFiles(repoId),
       this.repo.getPrTouches(repoId, since),
       this.repoIntel.getCriticalPaths(repoId),
-      this.repo.getFileFacts(repoId),
+      this.repoIntel.getEndpointFacts(repoId),
     ]);
     const paths = ranked.map((r) => r.path);
     const allPaths = new Set(paths);

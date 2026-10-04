@@ -444,7 +444,7 @@ export function validateLlmTour(
 
 /** `stale` only when both SHAs are known and differ (AC-7). */
 export function isStale(generatedSha: string | null, lastIndexedSha: string | null): boolean {
-  return !!generatedSha && !!lastIndexedSha && generatedSha !== lastIndexedSha;
+  return !!generatedSha && generatedSha !== lastIndexedSha;
 }
 
 // --------------------------------------------------------------- prompt -----

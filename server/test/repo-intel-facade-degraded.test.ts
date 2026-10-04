@@ -45,6 +45,7 @@ function buildDegradedService(opts: {
         { path: 'src/a.test.ts', rank: 0.5 },
       ];
     },
+    getEndpointFacts: async () => [{ path: 'src/r.ts', endpoints: ['GET /x'] }],
   };
   return svc;
 }
@@ -110,6 +111,11 @@ describe('RepoIntel facade — degraded contract (flag off)', () => {
     await expect(svc.getRankedFiles('r1')).resolves.toEqual([]);
   });
 
+  it('getEndpointFacts → [] when repoIntelEnabled=false', async () => {
+    const svc = buildDegradedService({ flag: false });
+    await expect(svc.getEndpointFacts('r1')).resolves.toEqual([]);
+  });
+
   it('indexRepo / refreshIndex → degraded T1 skeleton (never throws)', async () => {
     const svc = buildDegradedService({ flag: false });
     const a = await svc.indexRepo('r1');
@@ -148,5 +154,12 @@ describe('RepoIntel facade — getRankedFiles (flag on)', () => {
     ]);
     await svc.getRankedFiles('r1', 10);
     expect(rankedCalls).toEqual([5000, 10]);
+  });
+});
+
+describe('RepoIntel facade — getEndpointFacts (flag on)', () => {
+  it('returns the repository rows', async () => {
+    const svc = buildDegradedService({ flag: true });
+    await expect(svc.getEndpointFacts('r1')).resolves.toEqual([{ path: 'src/r.ts', endpoints: ['GET /x'] }]);
   });
 });

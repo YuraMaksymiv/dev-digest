@@ -8,7 +8,7 @@ import {
   PrHistory,
   SmartDiff,
   Conformance,
-  Onboarding,
+  OnboardingTour,
   EvalRun,
   MemoryItem,
   RunTrace,
@@ -167,7 +167,7 @@ describe('AI contracts parse fixtures', () => {
     ).toThrow();
   });
 
-  it('Conformance / Onboarding / EvalRun / MemoryItem', () => {
+  it('Conformance / OnboardingTour / EvalRun / MemoryItem', () => {
     expect(() =>
       Conformance.parse({
         spec_id: 's1',
@@ -177,8 +177,13 @@ describe('AI contracts parse fixtures', () => {
       }),
     ).not.toThrow();
     expect(() =>
-      Onboarding.parse({
-        sections: [{ kind: 'architecture', title: 'T', body: 'b', links: [] }],
+      OnboardingTour.parse({
+        version: 2,
+        architecture: { summary_md: 'm', diagram: null },
+        critical_paths: [{ path: 'src/a.ts', reason: 'r' }],
+        run_steps: [{ command: 'pnpm install', note: 'n' }],
+        reading_path: [{ path: 'src/a.ts', why: 'w', score: 0.5 }],
+        first_tasks: [{ title: 't', why: 'w', files: ['src/a.ts'] }],
       }),
     ).not.toThrow();
     expect(() =>

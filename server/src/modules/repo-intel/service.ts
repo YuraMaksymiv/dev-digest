@@ -664,6 +664,11 @@ export class RepoIntelService implements RepoIntel {
     return rows.map((r) => ({ path: r.path, rank: r.rank }));
   }
 
+  async getEndpointFacts(repoId: string): Promise<{ path: string; endpoints: string[] }[]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    return this.repo.getEndpointFacts(repoId);
+  }
+
   /**
    * Dependency chains from the highest-ranked files (onboarding reading-path).
    * For each of the top roots, greedily follow the highest-ranked import target

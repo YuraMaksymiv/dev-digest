@@ -18,7 +18,7 @@ export async function cloneExists(root: string): Promise<boolean> {
 /**
  * Reads at most `maxBytes` of one clone file. The clone is NOT a safe root
  * (`.git/config` holds the token-bearing URL; tracked symlinks can point at it),
- * so the path rules are re-run on the realpath-relative path, the file is
+ * so the path rules are re-run on the realpath-relative path, every segment of the unresolved path must not be a symlink, the file is
  * opened with O_NOFOLLOW and lstat is compared to fstat (server INSIGHTS
  * 2026-10-04, same shape as `project-context` `readDoc`). Anything unsafe,
  * missing or non-text is `skipped`.
@@ -27,7 +27,13 @@ export async function readCloneFile(root: string, path: string, maxBytes: number
   if (!isSafeRelPath(path)) return { kind: 'skipped' };
   try {
     const rootReal = await realpath(root);
-    const real = await realpath(join(root, path));
+    const abs = join(rootReal, path);
+    let cur = rootReal;
+    for (const seg of path.split('/')) {
+      cur = join(cur, seg);
+      if ((await lstat(cur)).isSymbolicLink()) return { kind: 'skipped' };
+    }
+    const real = await realpath(abs);
     if (!real.startsWith(rootReal + sep)) return { kind: 'skipped' };
     const realRel = relative(rootReal, real).split(sep).join('/');
     if (!isSafeRelPath(realRel)) return { kind: 'skipped' };
