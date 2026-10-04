@@ -16,6 +16,7 @@ skip it.
 - 2026-09-20 — The deterministic locator set has no hover primitive (`lib/assert.ts:10` — commands are agent-browser argv, and only `--url`/`--text`/`find role|text|label` are allowed here), so hover-only UI cannot be asserted in a flow at all. The PR list's findings popover is therefore covered by `client/src/app/repos/[repoId]/pulls/_components/FindingsCell/FindingsCell.test.tsx` instead, and the exclusion is recorded in `specs/coverage.md`.
 
 - 2026-09-16 — `./scripts/e2e.sh` boots its whole hermetic stack (pg + API :3101 + web :3100) and only THEN fails if the external `agent-browser` CLI is missing — every flow reports `spawn agent-browser ENOENT`, which reads like a suite-wide regression rather than a missing binary. `e2e/` also installs with **npm** (`package-lock.json`), not pnpm like the other packages. First-time setup on a machine: `cd e2e && npm ci` plus `npm i -g agent-browser && agent-browser install` (downloads Chrome for Testing).
+- 2026-10-04 — The seeded `acme/payments-api` repo has `clonePath: null` (`server/src/db/seed.ts:94`), so any clone/index-dependent page renders its no-clone empty state in e2e (e.g. Onboarding Tour → "Repository not indexed"), never the generated or skeleton state. Assert that state; don't click actions that would need a clone or an LLM. Evidence: `flows/09-onboarding-tour.flow.json`.
 
 ## Decisions
 

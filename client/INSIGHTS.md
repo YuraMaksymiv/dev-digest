@@ -27,6 +27,7 @@ skip it.
 - 2026-09-27 — `SkillsTab` (`_components/SkillsTab/SkillsTab.tsx:106`) has TWO distinct "off" states that must not be conflated: `struck` (`!row.globallyEnabled`, the skill's global kill switch — greyed out, checkbox itself disabled, shown with a "disabled globally" caption) vs. a plain per-agent unchecked row (`!row.enabled`, still fully interactive-looking). A code-review flagged drag being gated only on the search filter (`reorderable`, line 86) and never on either "off" state — fixed by adding `!struck` to the drag/handle/arrow gate. Deliberately did NOT also gate on `!row.enabled`: `SkillsTab.test.tsx`'s "reorders with the arrow buttons" test asserts a per-agent-off row (`link_enabled: false`, globally still enabled) stays draggable, since unchecking it here is meant to be reversible without losing its place in the order — only the globally-struck state is meant to be inert.
 
 ## Decisions
+- 2026-10-04 — New sidebar items are added app-side without editing `src/vendor/ui/`: `components/app-shell/nav-extension.ts` idempotently splices into the barrel-exported (mutable) `NAV` array and is imported for its side effect in `AppShell.tsx`. Works because `Sidebar.tsx`, `useShellCommands` and `useGlobalShortcuts` all read the same `NAV` instance at render/call time. Keep the `key` guard — HMR re-evaluates the module. `activeKeyFor` must match `/onboarding-tour`, not `/onboarding` (that's the add-repo route).
 
 ## Recurring Errors & Fixes
 
