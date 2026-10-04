@@ -12,3 +12,4 @@ Status lifecycle: `draft` (open `[NEEDS CLARIFICATION]` markers) →
 |---|---|---|
 | [project-context.md](project-context.md) — attach repo markdown docs to agents/skills, inject as untrusted `## Project context`, show in run trace | server, client, reviewer-core | implemented |
 | [onboarding-generator.md](onboarding-generator.md) — per-repo Onboarding Tour: five typed sections from index facts, one LLM call, deterministic skeleton fallback | server, client | approved |
+| [pr-brief.md](pr-brief.md) — PR Brief card on Overview: one-call summary, risk areas, review focus, cached by head SHA, click-through to Files changed | server, client | approved |
