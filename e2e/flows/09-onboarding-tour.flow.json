@@ -1,0 +1,14 @@
+{
+  "name": "Onboarding Tour page opens from the sidebar and shows the not-indexed empty state",
+  "description": "From the seeded repo's PR list, opens the Onboarding Tour sidebar item and confirms the route, page header and the empty state the seed produces (the demo repo has no local clone, so the page renders 'Repository not indexed'). Read-only: never clicks Generate or Index repository (no LLM call, no clone/index mutation). Assumes a freshly-seeded DB where acme/payments-api is the only repo.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Onboarding Tour"], "label": "the sidebar item is visible" },
+    { "cmd": ["find", "text", "Onboarding Tour", "click"], "label": "open the Onboarding Tour item" },
+    { "cmd": ["wait", "--url", "/onboarding-tour"], "label": "navigate to the tour route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "tour fetch settles" },
+    { "cmd": ["wait", "--text", "Onboarding for"], "label": "the page header renders" },
+    { "cmd": ["wait", "--text", "Repository not indexed"], "label": "the no-clone empty state renders" }
+  ]
+}

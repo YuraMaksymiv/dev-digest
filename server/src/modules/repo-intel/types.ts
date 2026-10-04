@@ -169,4 +169,6 @@ export interface RepoIntel {
     opts?: { exclude?: string[] },
   ): Promise<string[]>;
   getCriticalPaths(repoId: string): Promise<string[][]>;
+  /** Every ranked file (unfiltered), rank desc. `[]` when the flag is off. */
+  getRankedFiles(repoId: string, limit?: number): Promise<{ path: string; rank: number }[]>;
 }

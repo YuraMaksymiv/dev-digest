@@ -26,25 +26,59 @@ export const Conformance = z.object({
 export type Conformance = z.infer<typeof Conformance>;
 
 // ---- Onboarding ----
-export const OnboardingLink = z.object({
-  label: z.string(),
-  path: z.string(),
+export const OnboardingTour = z.object({
+  version: z.literal(2),
+  architecture: z.object({
+    summary_md: z.string(),
+    diagram: z.string().nullable(),
+  }),
+  critical_paths: z.array(z.object({ path: z.string(), reason: z.string() })),
+  run_steps: z.array(z.object({ command: z.string(), note: z.string() })),
+  reading_path: z.array(
+    z.object({ path: z.string(), why: z.string(), score: z.number() }),
+  ),
+  first_tasks: z.array(
+    z.object({ title: z.string(), why: z.string(), files: z.array(z.string()) }),
+  ),
 });
-export type OnboardingLink = z.infer<typeof OnboardingLink>;
+export type OnboardingTour = z.infer<typeof OnboardingTour>;
 
-export const OnboardingSection = z.object({
-  kind: z.string(),
-  title: z.string(),
-  body: z.string(), // markdown
-  diagram: z.string().nullish(), // mermaid
-  links: z.array(OnboardingLink),
+export const OnboardingResponse = z.object({
+  tour: OnboardingTour.nullable(),
+  source: z.enum(['llm', 'skeleton', 'none']),
+  banner: z
+    .object({
+      kind: z.enum([
+        'not_generated',
+        'index_degraded',
+        'no_clone',
+        'llm_failed',
+        'invalid_output',
+      ]),
+      reason: z.string().nullable(),
+    })
+    .nullable(),
+  index: z.object({
+    status: z.enum(['full', 'partial', 'degraded', 'failed']),
+    files_indexed: z.number().int(),
+    files_total: z.number().int(),
+    last_indexed_sha: z.string().nullable(),
+  }),
+  generated_at: z.string().nullable(),
+  generated_sha: z.string().nullable(),
+  stale: z.boolean(),
+  usage: z
+    .object({
+      model: z.string(),
+      tokens_in: z.number().int(),
+      tokens_out: z.number().int(),
+      cost_usd: z.number().nullable(),
+      llm_calls: z.number().int(),
+      duration_ms: z.number().int(),
+    })
+    .nullable(),
 });
-export type OnboardingSection = z.infer<typeof OnboardingSection>;
-
-export const Onboarding = z.object({
-  sections: z.array(OnboardingSection),
-});
-export type Onboarding = z.infer<typeof Onboarding>;
+export type OnboardingResponse = z.infer<typeof OnboardingResponse>;
 
 // ---- Eval ----
 export const EvalPerTrace = z.object({

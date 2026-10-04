@@ -15,6 +15,8 @@ import type { IndexState } from '../src/modules/repo-intel/types.js';
  * to return null/[] so we exercise the degraded paths cleanly.
  */
 
+const rankedCalls: number[] = [];
+
 function buildDegradedService(opts: {
   flag: boolean;
   basics?: RepoBasics | null;
@@ -36,6 +38,13 @@ function buildDegradedService(opts: {
     getCachedSymbols: async () => [],
     getCachedSymbolsForFiles: async () => [],
     getCachedReferencesTo: async () => [],
+    getRankedPaths: async (_id: string, limit: number) => {
+      rankedCalls.push(limit);
+      return [
+        { path: 'vendor/x.ts', rank: 0.9 },
+        { path: 'src/a.test.ts', rank: 0.5 },
+      ];
+    },
   };
   return svc;
 }
@@ -96,6 +105,11 @@ describe('RepoIntel facade — degraded contract (flag off)', () => {
     await expect(svc.getCriticalPaths('r1')).resolves.toEqual([]);
   });
 
+  it('getRankedFiles → [] when repoIntelEnabled=false', async () => {
+    const svc = buildDegradedService({ flag: false });
+    await expect(svc.getRankedFiles('r1')).resolves.toEqual([]);
+  });
+
   it('indexRepo / refreshIndex → degraded T1 skeleton (never throws)', async () => {
     const svc = buildDegradedService({ flag: false });
     const a = await svc.indexRepo('r1');
@@ -121,5 +135,18 @@ describe('RepoIntel facade — degraded contract (flag on, but no data)', () => 
   it('getCallerSignatures with empty changedFiles → []', async () => {
     const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', clonePath: '/tmp' } });
     await expect(svc.getCallerSignatures('r1', [])).resolves.toEqual([]);
+  });
+});
+
+describe('RepoIntel facade — getRankedFiles (flag on)', () => {
+  it('returns unfiltered rows with default limit 5000, honours explicit limit', async () => {
+    rankedCalls.length = 0;
+    const svc = buildDegradedService({ flag: true });
+    await expect(svc.getRankedFiles('r1')).resolves.toEqual([
+      { path: 'vendor/x.ts', rank: 0.9 },
+      { path: 'src/a.test.ts', rank: 0.5 },
+    ]);
+    await svc.getRankedFiles('r1', 10);
+    expect(rankedCalls).toEqual([5000, 10]);
   });
 });

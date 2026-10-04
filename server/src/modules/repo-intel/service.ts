@@ -655,6 +655,15 @@ export class RepoIntelService implements RepoIntel {
     return out;
   }
 
+  async getRankedFiles(
+    repoId: string,
+    limit?: number,
+  ): Promise<{ path: string; rank: number }[]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    const rows = await this.repo.getRankedPaths(repoId, limit ?? 5000);
+    return rows.map((r) => ({ path: r.path, rank: r.rank }));
+  }
+
   /**
    * Dependency chains from the highest-ranked files (onboarding reading-path).
    * For each of the top roots, greedily follow the highest-ranked import target
