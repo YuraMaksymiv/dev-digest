@@ -13,7 +13,7 @@ import type { PrFile } from "@/lib/types";
 import type { FindingActionKind, FindingRecord, SmartDiffGroup, SmartDiffRole } from "@devdigest/shared";
 import { type DiffCommentApi } from "../comments";
 import { s } from "../styles";
-import { orderFiles } from "../helpers";
+import { orderFiles, type FocusTarget } from "../helpers";
 import { FileCard } from "../FileCard";
 import { GroupHeader } from "../GroupHeader";
 
@@ -37,19 +37,20 @@ export function DiffViewer({
   files,
   commenting,
   smartDiff,
-  focusFile,
+  focusTarget,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   smartDiff?: SmartDiffViewerData;
-  /** Optional: expand, scroll to and highlight the file with this path. */
-  focusFile?: string | null;
+  /** Optional: expand, scroll to and highlight this file (and line, when set). */
+  focusTarget?: FocusTarget | null;
 }) {
   const t = useTranslations("shell");
   const [collapsed, setCollapsed] = React.useState(DEFAULT_COLLAPSED);
 
   const grouped = smartDiff?.groups;
   const order = smartDiff?.order ?? "original";
+  const focusFile = focusTarget?.file ?? null;
   React.useEffect(() => {
     if (!focusFile || !files) return;
     const ordered = orderFiles(files, grouped, order);
@@ -78,7 +79,7 @@ export function DiffViewer({
         findingActionPending={smartDiff?.findingActionPending}
         repoFullName={smartDiff?.repoFullName}
         headSha={smartDiff?.headSha}
-        focused={!!focusFile && file.path === focusFile}
+        focusTarget={focusTarget && file.path === focusTarget.file ? focusTarget : null}
       />
     );
   };

@@ -118,12 +118,25 @@ describe("PrBrief", () => {
     expect(state.gen.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
-  it("AC-26: clicking a focus item navigates to the diff tab with the file", () => {
+  it("AC-26: clicking a focus item navigates to the diff tab with the file and line", () => {
     setup(BRIEF);
     fireEvent.click(screen.getByRole("button", { name: "Open src/a.ts at line 12 in the diff" }));
-    expect(push).toHaveBeenCalledWith("/repos/r1/pulls/7?tab=diff&file=src%2Fa.ts");
+    expect(push).toHaveBeenCalledWith("/repos/r1/pulls/7?tab=diff&file=src%2Fa.ts&line=12");
     fireEvent.click(screen.getByRole("button", { name: "Open src/b file.ts in the diff" }));
     expect(push).toHaveBeenLastCalledWith("/repos/r1/pulls/7?tab=diff&file=src%2Fb%20file.ts");
+  });
+
+  it("AC-26: a path needing encoding keeps the line param after the encoded file", () => {
+    setup({ ...BRIEF, review_focus: [{ file: "src/b file.ts", line: 3, reason: "Wiring" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Open src/b file.ts at line 3 in the diff" }));
+    expect(push).toHaveBeenCalledWith("/repos/r1/pulls/7?tab=diff&file=src%2Fb%20file.ts&line=3");
+  });
+
+  it("AC-36: a focus item shows file:line when a line is set, only the file otherwise", () => {
+    setup(BRIEF);
+    expect(screen.getByText("src/a.ts:12")).toBeInTheDocument();
+    expect(screen.getByText("src/b file.ts")).toBeInTheDocument();
+    expect(screen.queryByText(/src\/b file\.ts:/)).toBeNull();
   });
 
   it("AC-12, AC-25: shows empty states for no risks and no focus", () => {

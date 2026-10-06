@@ -14,6 +14,7 @@ import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
 import { DiffTab } from "./_components/DiffTab";
+import { parseLineParam } from "./helpers";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -60,6 +61,11 @@ export default function PRDetailPage() {
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
   const focusFile = search.get("file");
+  const focusLine = parseLineParam(search.get("line"));
+  const focusTarget = React.useMemo(
+    () => (focusFile ? { file: focusFile, line: focusLine } : null),
+    [focusFile, focusLine],
+  );
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
@@ -179,7 +185,7 @@ export default function PRDetailPage() {
             findings={allFindings}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
-            focusFile={focusFile}
+            focusTarget={focusTarget}
           />
         )}
       </div>

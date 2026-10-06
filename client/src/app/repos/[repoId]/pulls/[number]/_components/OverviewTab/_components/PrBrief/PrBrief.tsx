@@ -93,7 +93,8 @@ export function PrBrief({ prId }: { prId: string | null }) {
     );
   }
 
-  const open = (file: string) => router.push(diffHref(params.repoId, params.number, file));
+  const open = (file: string, line: number | null) =>
+    router.push(diffHref(params.repoId, params.number, file, line));
 
   return (
     <section style={s.wrap}>
@@ -181,7 +182,7 @@ export function PrBrief({ prId }: { prId: string | null }) {
                       ? t("prBrief.focusOpenAriaLine", { file: f.file, line: f.line })
                       : t("prBrief.focusOpenAria", { file: f.file })
                   }
-                  onClick={() => open(f.file)}
+                  onClick={() => open(f.file, f.line)}
                 >
                   <span className="mono" style={s.focusFile}>
                     {f.line != null ? `${f.file}:${f.line}` : f.file}
