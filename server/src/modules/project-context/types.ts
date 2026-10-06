@@ -2,7 +2,7 @@
  * project-context — resolver port. `reviews` codes against this (resolved via
  * `Container.projectContext`), never against the service or repository.
  */
-import type { SpecDetail } from '@devdigest/shared';
+import type { ContextDocRoot, SpecDetail } from '@devdigest/shared';
 
 export interface ResolveInput {
   agentId: string;
@@ -13,7 +13,7 @@ export interface ResolveInput {
 
 export interface ResolvedProjectContext {
   /** Capped, deduplicated docs ready for the `specs` prompt slot (in order). */
-  texts: { source: string; text: string }[];
+  texts: { source: string; text: string; group: ContextDocRoot }[];
   /** One entry per attached doc incl. missing / unreadable / over_budget. */
   specs_detail: SpecDetail[];
   /** Paths actually injected (status `read` or `truncated`). */

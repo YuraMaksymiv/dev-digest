@@ -3,6 +3,7 @@ import {
   applyBudget,
   dedupCandidates,
   rootTypeOf,
+  sortByGroup,
   truncateHead,
   validateDocPath,
   type Candidate,
@@ -94,6 +95,53 @@ describe('applyBudget', () => {
     );
     expect(r.specs_detail.map((d) => d.status)).toEqual(['missing', 'unreadable', 'truncated']);
     expect(r.specs_read).toEqual(['t']);
-    expect(r.texts).toEqual([{ source: 't', text: 't' }]);
+    expect(r.texts).toEqual([{ source: 't', text: 't', group: 'docs' }]);
+  });
+});
+
+describe('sortByGroup + grouped budget', () => {
+  const c = (path: string, source: 'agent' | 'skill', tokens = 1) =>
+    cand(path, tokens, { source, source_name: source === 'skill' ? 'sk' : null });
+
+  it('orders specs, docs, insights keeping agent-then-skill order inside each group', () => {
+    const sorted = sortByGroup([
+      c('insights/i1.md', 'agent'),
+      c('docs/d1.md', 'agent'),
+      c('specs/s1.md', 'skill'),
+      c('docs/d2.md', 'skill'),
+      c('specs/s2.md', 'agent'),
+    ]);
+    expect(sorted.map((x) => x.path)).toEqual([
+      'specs/s1.md',
+      'specs/s2.md',
+      'docs/d1.md',
+      'docs/d2.md',
+      'insights/i1.md',
+    ]);
+  });
+
+  it('uses the first root segment when a path sits under several roots (E16)', () => {
+    const r = applyBudget(sortByGroup([c('docs/specs/x.md', 'agent')]), 10);
+    expect(r.texts[0]?.group).toBe('docs');
+    expect(r.specs_detail[0]?.root_type).toBe('docs');
+  });
+
+  it('applies the budget in grouped order and tags root_type on every entry (E19)', () => {
+    const r = applyBudget(
+      sortByGroup([
+        c('docs/d.md', 'agent', 6),
+        c('specs/s.md', 'agent', 6),
+        c('insights/i.md', 'agent', 3),
+        c('docs/gone.md', 'agent', 0),
+      ]),
+      10,
+    );
+    expect(r.specs_detail.map((d) => [d.path, d.status, d.root_type])).toEqual([
+      ['specs/s.md', 'read', 'specs'],
+      ['docs/d.md', 'over_budget', 'docs'],
+      ['docs/gone.md', 'read', 'docs'],
+      ['insights/i.md', 'read', 'insights'],
+    ]);
+    expect(r.texts.map((t) => t.group)).toEqual(['specs', 'docs', 'insights']);
   });
 });

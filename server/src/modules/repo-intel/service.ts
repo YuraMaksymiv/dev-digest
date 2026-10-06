@@ -34,6 +34,7 @@ import type {
   BlastChangedSymbol,
   BlastResult,
   FileRankRow,
+  EnqueueResyncResult,
   IndexResult,
   IndexState,
   RefRow,
@@ -100,6 +101,7 @@ const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
 
 export class RepoIntelService implements RepoIntel {
   private readonly repo: RepoIntelRepository;
+  private readonly resyncInFlight = new Map<string, Promise<EnqueueResyncResult>>();
 
   constructor(private container: Container) {
     this.repo = new RepoIntelRepository(container.db);
@@ -159,6 +161,24 @@ export class RepoIntelService implements RepoIntel {
       };
     }
     return runIncremental(this.container, this.repo, { repoId });
+  }
+
+  enqueueResync(workspaceId: string, repoId: string): Promise<EnqueueResyncResult> {
+    const key = `${workspaceId}:${repoId}`;
+    const existing = this.resyncInFlight.get(key);
+    if (existing) return existing;
+    const pending = (async (): Promise<EnqueueResyncResult> => {
+      try {
+        const job = await this.container.jobs.enqueue(workspaceId, RESYNC_JOB_KIND, { repoId });
+        void job.done.catch(() => undefined).finally(() => this.resyncInFlight.delete(key));
+        return { jobId: job.id };
+      } catch {
+        this.resyncInFlight.delete(key);
+        return { degraded: true, reason: 'no_handler' };
+      }
+    })();
+    this.resyncInFlight.set(key, pending);
+    return pending;
   }
 
   /**

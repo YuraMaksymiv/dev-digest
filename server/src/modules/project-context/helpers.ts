@@ -89,8 +89,23 @@ export function dedupCandidates<T extends { path: string }>(items: T[]): T[] {
   return out;
 }
 
+const GROUP_ORDER: readonly ContextDocRoot[] = ['specs', 'docs', 'insights'];
+
+/** Group a doc is rendered under; a path with no recognised root falls back to `docs`. */
+export function groupOf(path: string): ContextDocRoot {
+  return rootTypeOf(path) ?? 'docs';
+}
+
+/** Stable sort into specs, docs, insights; the order within a group is preserved. */
+export function sortByGroup<T extends { path: string }>(items: T[]): T[] {
+  return items
+    .map((item, i) => ({ item, i, g: GROUP_ORDER.indexOf(groupOf(item.path)) }))
+    .sort((a, b) => a.g - b.g || a.i - b.i)
+    .map((x) => x.item);
+}
+
 export interface BudgetResult {
-  texts: { source: string; text: string }[];
+  texts: { source: string; text: string; group: ContextDocRoot }[];
   specs_detail: SpecDetail[];
   specs_read: string[];
 }
@@ -106,7 +121,8 @@ export function applyBudget(candidates: Candidate[], totalBudget: number): Budge
   const specs_read: string[] = [];
   let used = 0;
   for (const c of candidates) {
-    const base = { path: c.path, source: c.source, source_name: c.source_name };
+    const root_type = groupOf(c.path);
+    const base = { path: c.path, source: c.source, source_name: c.source_name, root_type };
     if (c.status === 'missing' || c.status === 'unreadable') {
       specs_detail.push({ ...base, tokens: 0, status: c.status });
       continue;
@@ -116,7 +132,7 @@ export function applyBudget(candidates: Candidate[], totalBudget: number): Budge
       continue;
     }
     used += c.tokens;
-    texts.push({ source: c.path, text: c.text });
+    texts.push({ source: c.path, text: c.text, group: root_type });
     specs_read.push(c.path);
     specs_detail.push({ ...base, tokens: c.tokens, status: c.status });
   }

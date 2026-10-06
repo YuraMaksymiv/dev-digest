@@ -21,7 +21,8 @@ export function splitPath(path: string): { name: string; folder: string } {
 
 function rootOf(path: string): ContextDocRoot | null {
   const segments = path.split("/").slice(0, -1);
-  return ROOT_NAMES.find((r) => segments.includes(r)) ?? null;
+  const first = segments.find((seg) => (ROOT_NAMES as readonly string[]).includes(seg));
+  return (first as ContextDocRoot | undefined) ?? null;
 }
 
 /**
@@ -98,4 +99,38 @@ export function filterRows(rows: DocRowState[], query: string): DocRowState[] {
   const q = query.trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((r) => r.path.toLowerCase().includes(q));
+}
+
+export interface SerializedEntry {
+  path: string;
+  tokens: number;
+  /** 1-based position in the order the docs reach the prompt (across groups). */
+  order: number;
+}
+
+export interface SerializedGroup {
+  group: ContextDocRoot;
+  tokens: number;
+  entries: SerializedEntry[];
+}
+
+/**
+ * The attached docs in the order the server serializes them: grouped
+ * specs, docs, insights, the picker order kept inside a group. Missing docs are
+ * excluded, empty groups are not returned.
+ */
+export function groupSerialized(rows: DocRowState[]): SerializedGroup[] {
+  const live = rows.filter((r) => r.attached && !r.missing);
+  let order = 0;
+  const out: SerializedGroup[] = [];
+  for (const group of ROOT_NAMES) {
+    const inGroup = live.filter((r) => (r.rootType ?? "docs") === group);
+    if (inGroup.length === 0) continue;
+    out.push({
+      group,
+      tokens: inGroup.reduce((sum, r) => sum + r.tokens, 0),
+      entries: inGroup.map((r) => ({ path: r.path, tokens: r.tokens, order: ++order })),
+    });
+  }
+  return out;
 }

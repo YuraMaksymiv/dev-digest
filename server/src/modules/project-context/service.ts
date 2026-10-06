@@ -22,6 +22,7 @@ import {
 import {
   applyBudget,
   dedupCandidates,
+  sortByGroup,
   isBinary,
   rootTypeOf,
   sumTokens,
@@ -90,6 +91,11 @@ export class ProjectContextService implements ProjectContextResolver, RepoSpecsR
     const repo = await this.repo.getRepoInWorkspace(workspaceId, repoId);
     if (!repo) throw new NotFoundError('Repository not found');
     return repo;
+  }
+
+  /** 404 unless the repo belongs to the caller's workspace (used before enqueueing work). */
+  async assertRepoInWorkspace(workspaceId: string, repoId: string): Promise<void> {
+    await this.requireRepo(workspaceId, repoId);
   }
 
   private rootFor(repo: RepoRefRow): string {
@@ -263,8 +269,10 @@ export class ProjectContextService implements ProjectContextResolver, RepoSpecsR
       const repo = await this.repo.getRepoRef(repoId);
       if (!repo) return empty;
       const rows = await this.repo.getEnabledAgentAttachments(repoId);
-      const unique = dedupCandidates(
-        rows.map((r) => ({ path: r.path, source: 'agent' as const, source_name: null })),
+      const unique = sortByGroup(
+        dedupCandidates(
+          rows.map((r) => ({ path: r.path, source: 'agent' as const, source_name: null })),
+        ),
       );
       if (unique.length === 0) return empty;
       const candidates = await this.readCandidates(this.rootFor(repo), repoId, unique);
@@ -292,7 +300,7 @@ export class ProjectContextService implements ProjectContextResolver, RepoSpecsR
           refs.push({ path: r.path, source: 'skill', source_name: skill.name });
         }
       }
-      const unique = dedupCandidates(refs);
+      const unique = sortByGroup(dedupCandidates(refs));
       if (unique.length === 0) return empty;
 
       const candidates = await this.readCandidates(this.rootFor(repo), input.repoId, unique);

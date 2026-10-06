@@ -20,10 +20,20 @@ const list = {
   refetch: vi.fn(),
 };
 const content = { data: undefined as unknown, isLoading: false, isError: false, refetch: vi.fn() };
+const toastError = vi.fn();
+vi.mock("@/lib/toast", () => ({ useToast: () => ({ error: toastError, success: vi.fn(), info: vi.fn() }) }));
+const reindex = { start: vi.fn(), running: false };
+let reindexOnError: () => void = () => {};
 vi.mock("@/lib/hooks/project-context", () => ({
   useContextDocs: () => list,
   useContextDocContent: () => content,
+  useReindexProjectContext: (_repoId: string, onError: () => void) => {
+    reindexOnError = onError;
+    return reindex;
+  },
 }));
+const { saveMarkdown } = vi.hoisted(() => ({ saveMarkdown: vi.fn() }));
+vi.mock("../../helpers", async (orig) => ({ ...(await orig<typeof import("../../helpers")>()), saveMarkdown }));
 
 import { ContextView } from "./ContextView";
 
@@ -38,6 +48,7 @@ beforeEach(() => {
     isError: false,
   });
   Object.assign(content, { data: { path: "specs/a.md", content: "# Title", tokens: 5 }, isLoading: false, isError: false });
+  Object.assign(reindex, { running: false });
 });
 afterEach(cleanup);
 
@@ -65,9 +76,60 @@ describe("ContextView", () => {
     expect(screen.getByText("No documents match “zzz”.")).toBeInTheDocument();
   });
 
-  it("offers no edit, new or upload controls", () => {
+  it("AC-31: offers no enabled edit, new or upload control", () => {
     renderView();
-    expect(screen.queryByText(/edit|upload|new/i)).toBeNull();
+    expect(screen.queryByText(/upload|new/i)).toBeNull();
+    const edit = screen.getByRole("tab", { name: "Edit" });
+    expect(edit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(edit);
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("AC-53: the Edit tab is disabled with the repo tooltip", () => {
+    renderView();
+    expect(screen.getByRole("tab", { name: "Edit" })).toHaveAttribute("title", "Docs are edited in the repo");
+  });
+
+  it("AC-48: Reindex starts a reindex and shows busy + disabled while running", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "Reindex" }));
+    expect(reindex.start).toHaveBeenCalledTimes(1);
+    cleanup();
+    Object.assign(reindex, { running: true });
+    renderView();
+    const btn = screen.getByRole("button", { name: "Reindex" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("AC-50: a reindex failure raises an error toast and keeps the list", () => {
+    renderView();
+    reindexOnError();
+    expect(toastError).toHaveBeenCalledWith("Couldn’t reindex the repository. The current list is unchanged.");
+    expect(screen.getByText("b.md")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reindex" })).toBeEnabled();
+  });
+
+  it("AC-51: Download saves the fetched content as <basename>.md", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(saveMarkdown).toHaveBeenCalledWith("a.md", "# Title");
+  });
+
+  it.each([
+    ["loading", { data: undefined, isLoading: true, isError: false }],
+    ["failed", { data: undefined, isLoading: false, isError: true }],
+  ])("AC-52: Download is disabled while content is %s", (_n, patch) => {
+    Object.assign(content, patch);
+    renderView();
+    expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
+  });
+
+  it("AC-52: Download is disabled when no doc is selected", () => {
+    Object.assign(list, { data: { docs: [], total_files: 0, total_tokens: 0, truncated: false, reason: null, limits: LIMITS } });
+    Object.assign(content, { data: undefined });
+    renderView();
+    expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
   });
 
   it("does not render raw HTML from a document", () => {

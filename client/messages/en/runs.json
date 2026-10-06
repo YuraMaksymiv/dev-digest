@@ -44,7 +44,12 @@
         "over_budget": "skipped (over budget)"
       },
       "specFromAgent": "agent",
-      "specFromSkill": "skill {name}"
+      "specFromSkill": "skill {name}",
+      "specGroup": {
+        "specs": "Specifications",
+        "docs": "Docs",
+        "insights": "Insights"
+      }
     },
     "stat": {
       "duration": "DURATION",

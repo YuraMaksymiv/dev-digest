@@ -127,7 +127,7 @@ describe('resolve', () => {
       ['specs/link.md', 'unreadable', 'skill', 'Sk'],
     ]);
     expect(r.specs_read).toEqual(['specs/a.md', 'specs/big.md']);
-    expect(r.texts[0]).toEqual({ source: 'specs/a.md', text: 'hello world' });
+    expect(r.texts[0]).toEqual({ source: 'specs/a.md', text: 'hello world', group: 'specs' });
   });
 
   it('AC-19: logs one info line per skipped doc without doc text', async () => {
@@ -183,7 +183,7 @@ describe('resolveForRepo', () => {
     });
     const r = await svc.resolveForRepo('r');
     expect(r.specs_read).toEqual(['specs/a.md']);
-    expect(r.texts).toEqual([{ source: 'specs/a.md', text: 'hello world' }]);
+    expect(r.texts).toEqual([{ source: 'specs/a.md', text: 'hello world', group: 'specs' }]);
     expect(r.specs_detail.map((d) => [d.path, d.status])).toEqual([
       ['specs/a.md', 'read'],
       ['specs/gone.md', 'missing'],

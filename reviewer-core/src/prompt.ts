@@ -37,6 +37,15 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+export type SpecGroup = 'specs' | 'docs' | 'insights';
+
+const SPEC_GROUP_ORDER: readonly SpecGroup[] = ['specs', 'docs', 'insights'];
+const SPEC_GROUP_HEADINGS: Record<SpecGroup, string> = {
+  specs: '### Specifications',
+  docs: '### Docs',
+  insights: '### Insights',
+};
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
@@ -47,9 +56,11 @@ export interface PromptParts {
   /**
    * Project-context spec chunks (untrusted content). A plain string is labelled
    * `spec-<i>`; an object carries its own `source` label (sanitized to
-   * [A-Za-z0-9._/-], max 200 chars, else `_`).
+   * [A-Za-z0-9._/-], max 200 chars, else `_`). An optional `group` renders the
+   * entry under a fixed `### Specifications|Docs|Insights` heading; entries
+   * without one render flat, before any grouped heading.
    */
-  specs?: (string | { source: string; text: string })[];
+  specs?: (string | { source: string; text: string; group?: SpecGroup })[];
   /**
    * Repo skeleton / map (T3): top-ranked symbols by signature, token-budgeted.
    * Untrusted (derived from repo code) — delimiter-wrapped. Rendered before
@@ -89,6 +100,35 @@ export interface AssembledPrompt {
   assembly: PromptAssembly;
 }
 
+function renderSpecs(specs: NonNullable<PromptParts['specs']>): string {
+  const wrap = (s: NonNullable<PromptParts['specs']>[number], i: number): string =>
+    typeof s === 'string' ? wrapUntrusted(`spec-${i}`, s) : wrapUntrusted(s.source, s.text);
+  const groupOf = (s: NonNullable<PromptParts['specs']>[number]): SpecGroup | undefined =>
+    typeof s === 'string' ? undefined : s.group;
+
+  const flat: string[] = [];
+  const grouped = new Map<SpecGroup, string[]>();
+  specs.forEach((s, i) => {
+    const g = groupOf(s);
+    if (!g) {
+      flat.push(wrap(s, i));
+      return;
+    }
+    const bucket = grouped.get(g) ?? [];
+    bucket.push(wrap(s, i));
+    grouped.set(g, bucket);
+  });
+
+  const sections = [...flat];
+  for (const g of SPEC_GROUP_ORDER) {
+    const bucket = grouped.get(g);
+    if (bucket && bucket.length > 0) {
+      sections.push(`${SPEC_GROUP_HEADINGS[g]}\n${bucket.join('\n\n')}`);
+    }
+  }
+  return sections.join('\n\n');
+}
+
 /**
  * Assemble the messages array + the PromptAssembly record for the run trace.
  * Untrusted blocks (specs, diff) are delimiter-wrapped; the injection guard is
@@ -104,13 +144,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       ? parts.memory.map((m) => `- ${m}`).join('\n')
       : undefined;
   const specsBlock =
-    parts.specs && parts.specs.length > 0
-      ? parts.specs
-          .map((s, i) =>
-            typeof s === 'string' ? wrapUntrusted(`spec-${i}`, s) : wrapUntrusted(s.source, s.text),
-          )
-          .join('\n\n')
-      : undefined;
+    parts.specs && parts.specs.length > 0 ? renderSpecs(parts.specs) : undefined;
 
   const prDescription =
     parts.prDescription && parts.prDescription.trim().length > 0

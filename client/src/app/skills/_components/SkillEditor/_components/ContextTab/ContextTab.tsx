@@ -1,5 +1,5 @@
 /* ContextTab — the repo docs attached to this skill. Any agent using the skill
-   inherits them; the note below describes how they reach the prompt. */
+   inherits them; the grouped Serializes-as view shows how they reach the prompt. */
 "use client";
 
 import React from "react";
@@ -15,9 +15,6 @@ export function ContextTab({ skill }: { skill: Skill }) {
       ownerId={skill.id}
       title={t("skillTab.title")}
       hint={t("skillTab.inherit")}
-      footerNote={
-        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 16 }}>{t("skillTab.serializes")}</p>
-      }
     />
   );
 }

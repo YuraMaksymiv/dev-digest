@@ -99,6 +99,31 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("Project context — attached specs (untrusted)")).toBeInTheDocument();
   });
 
+  it("AC-58: groups the Specs read row by root_type when present", () => {
+    traceOverride = {
+      specs_read: ["specs/a.md", "docs/c.md"],
+      specs_detail: [
+        { path: "docs/c.md", tokens: 10, source: "agent", source_name: null, status: "read", root_type: "docs" },
+        { path: "specs/a.md", tokens: 120, source: "agent", source_name: null, status: "read", root_type: "specs" },
+      ],
+    };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    const heads = screen.getAllByText(/^(Specifications|Docs|Insights)$/);
+    expect(heads.map((h) => h.textContent)).toEqual(["Specifications", "Docs"]);
+    expect(screen.queryByText("Insights")).toBeNull();
+  });
+
+  it("AC-58: an old trace whose specs_detail has no root_type renders ungrouped", () => {
+    traceOverride = {
+      specs_read: ["specs/a.md"],
+      specs_detail: [{ path: "specs/a.md", tokens: 120, source: "agent", source_name: null, status: "read" }],
+    };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("specs/a.md")).toBeInTheDocument();
+    expect(screen.getByText(/120 tokens · agent/)).toBeInTheDocument();
+    expect(screen.queryByText("Specifications")).toBeNull();
+  });
+
   it("falls back to the plain specs_read list for a trace without specs_detail", () => {
     traceOverride = { specs_read: ["specs/old.md"] };
     renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);

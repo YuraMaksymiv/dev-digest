@@ -9,10 +9,12 @@ import { useTranslations } from "next-intl";
 import { EmptyState, ErrorState, Icon, IconBtn, Markdown, Skeleton, TextInput } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
-import { useContextDocContent, useContextDocs } from "@/lib/hooks/project-context";
+import { useContextDocContent, useContextDocs, useReindexProjectContext } from "@/lib/hooks/project-context";
+import { useToast } from "@/lib/toast";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
-import { filterDocs, pickSelected, splitPath } from "../../helpers";
+import { downloadName, filterDocs, pickSelected, saveMarkdown, splitPath } from "../../helpers";
 import { s } from "../../styles";
+import { Toolbar } from "../Toolbar";
 
 export function ContextView() {
   const t = useTranslations("projectContext");
@@ -28,6 +30,9 @@ export function ContextView() {
   const visible = filterDocs(all, query);
   const selected = pickSelected(visible, selectedPath);
   const content = useContextDocContent(repoId, selected?.path);
+  const toast = useToast();
+  const reindex = useReindexProjectContext(repoId, () => toast.error(t("page.reindexError")));
+  const canDownload = !!selected && !!content.data && !content.isLoading && !content.isError;
 
   const crumb = [
     ...(activeRepo ? [{ label: activeRepo.full_name }] : []),
@@ -153,7 +158,17 @@ export function ContextView() {
             </div>
           )}
         </aside>
-        <main style={s.main}>{renderMain()}</main>
+        <main style={s.main}>
+          <Toolbar
+            reindexing={reindex.running}
+            canDownload={canDownload}
+            onReindex={reindex.start}
+            onDownload={() => {
+              if (selected && content.data) saveMarkdown(downloadName(selected.path), content.data.content);
+            }}
+          />
+          {renderMain()}
+        </main>
       </div>
     </AppShell>
   );

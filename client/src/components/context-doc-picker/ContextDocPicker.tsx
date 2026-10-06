@@ -29,6 +29,7 @@ import {
 import { useActiveRepo } from "@/lib/repo-context";
 import { useToast } from "@/lib/toast";
 import { ROOT_COLORS } from "./constants";
+import { SerializesAs } from "./SerializesAs";
 import {
   attachedTokens,
   buildRows,
@@ -299,6 +300,7 @@ export function ContextDocPicker({ kind, ownerId, title, hint, footerNote }: Con
           {t("picker.overCap", { total, cap })}
         </div>
       )}
+      <SerializesAs rows={rows} kind={kind} />
       {footerNote}
 
       {previewPath && <PreviewModal repoId={repoId} path={previewPath} onClose={() => setPreviewPath(null)} />}

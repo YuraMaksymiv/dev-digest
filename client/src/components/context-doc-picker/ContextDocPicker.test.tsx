@@ -126,4 +126,54 @@ describe("ContextDocPicker", () => {
     fireEvent.click(screen.getByLabelText("Preview a.md"));
     expect(screen.getByRole("heading", { name: "Hello" })).toBeInTheDocument();
   });
+
+  it("AC-59: shows SERIALIZES AS grouped with order, tokens, subtotal and the skills note", () => {
+    docsFor.mockImplementation(
+      ok({
+        docs: [{ ...d("docs/g.md", 20), root_type: "docs" }, d("specs/a.md", 60)],
+        total_files: 2, total_tokens: 80, truncated: false, reason: null,
+        limits: { per_doc_tokens: 4000, total_tokens: 10000 },
+      }),
+    );
+    attachmentsFor.mockImplementation(
+      ok({
+        repo_id: "r2",
+        attachments: [
+          { path: "docs/g.md", position: 0, status: "ok", tokens: 20 },
+          { path: "specs/a.md", position: 1, status: "ok", tokens: 60 },
+        ],
+        limits: { per_doc_tokens: 4000, total_tokens: 10000 },
+      }),
+    );
+    renderPicker();
+    const specs = screen.getByTestId("serializes-specs");
+    expect(specs).toHaveTextContent("Specifications");
+    expect(specs).toHaveTextContent("1specs/a.md60 tokens");
+    expect(specs).toHaveTextContent("subtotal ≈ 60 tokens");
+    expect(screen.getByTestId("serializes-docs")).toHaveTextContent("2docs/g.md20 tokens");
+    expect(screen.queryByTestId("serializes-insights")).toBeNull();
+    expect(screen.getByText(/attached to this agent’s skills follow these within each group/)).toBeInTheDocument();
+  });
+
+  it("AC-62: a missing attachment is excluded from SERIALIZES AS", () => {
+    attachmentsFor.mockImplementation(
+      ok({ repo_id: "r2", attachments: [{ path: "specs/gone.md", position: 0, status: "missing", tokens: 0 }], limits: LIMITS }),
+    );
+    renderPicker();
+    expect(screen.queryByTestId("serializes-specs")).toBeNull();
+  });
+
+  it("AC-61: hides SERIALIZES AS while nothing is attached", () => {
+    attachmentsFor.mockImplementation(ok({ repo_id: "r2", attachments: [], limits: LIMITS }));
+    renderPicker();
+    expect(screen.queryByText("Serializes as")).toBeNull();
+  });
+
+  it("AC-60: updates SERIALIZES AS when a doc is toggled (rows follow the picker state)", () => {
+    mutate.mockImplementation(() => {});
+    renderPicker();
+    expect(screen.getByTestId("serializes-specs")).not.toHaveTextContent("specs/a.md");
+    fireEvent.click(screen.getAllByRole("checkbox")[1]!);
+    expect(screen.getByTestId("serializes-specs")).toHaveTextContent("specs/a.md");
+  });
 });

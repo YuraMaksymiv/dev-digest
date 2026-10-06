@@ -22,7 +22,8 @@
     "notCloned": {
       "title": "Repository not cloned",
       "body": "This repository has no local clone yet, so its documents can’t be listed."
-    }
+    },
+    "reindexError": "Couldn’t reindex the repository. The current list is unchanged."
   },
   "picker": {
     "repoLabel": "Repository",
@@ -61,7 +62,26 @@
   },
   "skillTab": {
     "title": "Project context to use",
-    "inherit": "Any agent using this skill inherits these documents.",
-    "serializes": "Attached documents are added to the agent’s prompt as one untrusted ## Project context block. Each document appears under its repository path, in the order shown here, after the agent’s own documents."
+    "inherit": "Any agent using this skill inherits these documents."
+  },
+  "toolbar": {
+    "viewLabel": "Document view",
+    "preview": "Preview",
+    "edit": "Edit",
+    "editDisabled": "Docs are edited in the repo",
+    "reindex": "Reindex",
+    "download": "Download"
+  },
+  "serializes": {
+    "title": "Serializes as",
+    "group": {
+      "specs": "Specifications",
+      "docs": "Docs",
+      "insights": "Insights"
+    },
+    "subtotal": "subtotal ≈ {count} tokens",
+    "tokens": "{count} tokens",
+    "noteAgent": "Documents attached to this agent’s skills follow these within each group.",
+    "noteSkill": "Within each group, this skill’s documents follow the agent’s own."
   }
 }

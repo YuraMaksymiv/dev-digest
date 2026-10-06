@@ -15,3 +15,22 @@ export function filterDocs(docs: ContextDoc[], query: string): ContextDoc[] {
 export function pickSelected(visible: ContextDoc[], selected: string | null): ContextDoc | null {
   return visible.find((d) => d.path === selected) ?? visible[0] ?? null;
 }
+
+/** `<basename>.md` for a repo-relative doc path; only the last segment is kept (never the path). */
+export function downloadName(path: string): string {
+  const base = splitPath(path).name.replace(/[\\/:*?"<>|\0]/g, "_");
+  const stem = base.replace(/\.md$/i, "") || "document";
+  return `${stem}.md`;
+}
+
+/** Saves text as a markdown file through a temporary object URL. */
+export function saveMarkdown(filename: string, content: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: "text/markdown;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

@@ -98,6 +98,7 @@ export const s = {
   specsNone: { color: "var(--text-muted)" } satisfies CSSProperties,
   spec: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
   specsList: { display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  specGroupHead: { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginTop: 4 } satisfies CSSProperties,
   specDetail: { display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
   specMeta: { fontSize: 11, color: "var(--text-muted)" } satisfies CSSProperties,
   specFlag: { fontSize: 11, color: "var(--warn)" } satisfies CSSProperties,

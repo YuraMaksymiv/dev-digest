@@ -78,5 +78,7 @@ export const SpecDetail = z.object({
   /** Skill name when `source` is `skill`; null for the agent's own docs. */
   source_name: z.string().nullable(),
   status: z.enum(['read', 'truncated', 'missing', 'unreadable', 'over_budget']),
+  /** Root the doc lives under; absent on traces persisted before grouping. */
+  root_type: ContextDocRoot.nullish(),
 });
 export type SpecDetail = z.infer<typeof SpecDetail>;

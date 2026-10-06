@@ -30,8 +30,8 @@ const DIFF = `diff --git a/src/config.ts b/src/config.ts
 const REVIEW_FIXTURE: Review = { verdict: 'comment', summary: 'Nothing blocking.', score: 90, findings: [] };
 
 const DETAIL: SpecDetail[] = [
-  { path: 'specs/auth.md', tokens: 12, source: 'agent', source_name: 'Prompt Agent', status: 'read' },
-  { path: 'docs/gone.md', tokens: 0, source: 'agent', source_name: 'Prompt Agent', status: 'missing' },
+  { path: 'specs/auth.md', tokens: 12, source: 'agent', source_name: 'Prompt Agent', status: 'read', root_type: 'specs' },
+  { path: 'docs/gone.md', tokens: 0, source: 'agent', source_name: 'Prompt Agent', status: 'missing', root_type: 'docs' },
 ];
 
 type Resolver = { resolve: (i: unknown) => Promise<unknown> };
@@ -133,7 +133,7 @@ d('project context reaches the assembled prompt and trace', () => {
     const base = await runOnce({ resolve: async () => ({ texts: [], specs_detail: [], specs_read: [] }) });
     const withCtx = await runOnce({
       resolve: async () => ({
-        texts: [{ source: 'specs/auth.md', text: 'Auth must use PKCE.' }],
+        texts: [{ source: 'specs/auth.md', text: 'Auth must use PKCE.', group: 'specs' }],
         specs_detail: DETAIL,
         specs_read: ['specs/auth.md'],
       }),
@@ -141,6 +141,7 @@ d('project context reaches the assembled prompt and trace', () => {
 
     expect(withCtx.trace.prompt_assembly.user).toContain('Auth must use PKCE.');
     expect(withCtx.trace.prompt_assembly.specs).toContain('Auth must use PKCE.');
+    expect(withCtx.trace.prompt_assembly.specs).toContain('### Specifications');
     expect(withCtx.trace.specs_read).toEqual(['specs/auth.md']);
     expect(withCtx.trace.specs_detail).toEqual(DETAIL);
     expect(withCtx.calls).toBe(base.calls);

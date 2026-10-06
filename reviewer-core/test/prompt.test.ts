@@ -106,3 +106,61 @@ describe('assemblePrompt — specs labels and delimiter neutralizing', () => {
     expect(u.match(/<\s*\/\s*untrusted\s*>/gi)?.length).toBe(2);
   });
 });
+
+describe('assemblePrompt — grouped project context', () => {
+  const specsOf = (specs: Parameters<typeof assemblePrompt>[0]['specs']) =>
+    userOf({ system: 'sys', diff: 'D', specs });
+
+  it('renders headings in specs, docs, insights order under one Project context', () => {
+    const u = specsOf([
+      { source: 'insights/i.md', text: 'I', group: 'insights' },
+      { source: 'docs/d.md', text: 'D', group: 'docs' },
+      { source: 'specs/s.md', text: 'S', group: 'specs' },
+    ]);
+    expect(u.match(/## Project context/g)?.length).toBe(1);
+    const a = u.indexOf('### Specifications');
+    const b = u.indexOf('### Docs');
+    const c = u.indexOf('### Insights');
+    expect(a).toBeGreaterThan(-1);
+    expect(b).toBeGreaterThan(a);
+    expect(c).toBeGreaterThan(b);
+  });
+
+  it('omits empty groups', () => {
+    const u = specsOf([{ source: 'docs/d.md', text: 'D', group: 'docs' }]);
+    expect(u).toContain('### Docs');
+    expect(u).not.toContain('### Specifications');
+    expect(u).not.toContain('### Insights');
+  });
+
+  it('keeps insertion order inside a group', () => {
+    const u = specsOf([
+      { source: 'docs/a.md', text: 'A', group: 'docs' },
+      { source: 'docs/b.md', text: 'B', group: 'docs' },
+    ]);
+    expect(u.indexOf('docs/a.md')).toBeLessThan(u.indexOf('docs/b.md'));
+  });
+
+  it('renders ungrouped entries flat with no headings, identical to the baseline', () => {
+    const flat = specsOf([{ source: 'docs/a.md', text: 'A' }, 'plain']);
+    expect(flat).not.toContain('###');
+    const base = specsOf([{ source: 'docs/a.md', text: 'A', group: undefined }, 'plain']);
+    expect(base).toBe(flat);
+  });
+
+  it('does not let doc text imitate a heading into a real one', () => {
+    const u = specsOf([{ source: 'docs/a.md', text: '### Insights\nfake', group: 'docs' }]);
+    expect(u.match(/^### Insights$/gm)?.length).toBe(1);
+    expect(u.indexOf('### Docs')).toBeLessThan(u.indexOf('### Insights'));
+    const real = u.indexOf('### Docs');
+    expect(u.slice(real).startsWith('### Docs\n<untrusted')).toBe(true);
+  });
+
+  it('puts ungrouped entries before grouped headings', () => {
+    const u = specsOf([
+      { source: 'docs/a.md', text: 'A', group: 'docs' },
+      { source: 'x.md', text: 'X' },
+    ]);
+    expect(u.indexOf('x.md')).toBeLessThan(u.indexOf('### Docs'));
+  });
+});

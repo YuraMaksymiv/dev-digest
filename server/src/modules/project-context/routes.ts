@@ -15,6 +15,7 @@ import type { OwnerKind } from './repository.js';
  *   PUT /agents/:id/context                        → replace agent attachments
  *   GET /skills/:id/context?repo_id=               → skill attachments (ordered)
  *   PUT /skills/:id/context                        → replace skill attachments
+ *   POST /repos/:repoId/context/reindex            → 202, queue a repo-intel resync (no LLM)
  *
  * No route writes to the clone. Query/body are `safeParse`d locally so
  * failures answer 400 (the schema-driven path would answer 422).
@@ -43,6 +44,16 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
     if (!q.success) throw badRequest('invalid_path', 'A `path` query parameter is required');
     const { workspaceId } = await getContext(app.container, req);
     return svc().readContent(workspaceId, req.params.repoId, q.data.path);
+  });
+
+  app.post('/repos/:repoId/context/reindex', { schema: { params: RepoParams } }, async (req, reply) => {
+    const { workspaceId } = await getContext(app.container, req);
+    await svc().assertRepoInWorkspace(workspaceId, req.params.repoId);
+    const result = await app.container.repoIntel.enqueueResync(workspaceId, req.params.repoId);
+    reply.code(202);
+    return result.degraded
+      ? { status: 'accepted', degraded: true, reason: result.reason }
+      : { status: 'accepted', jobId: result.jobId };
   });
 
   const registerOwner = (prefix: 'agents' | 'skills', kind: OwnerKind) => {
