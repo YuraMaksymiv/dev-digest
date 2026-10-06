@@ -83,11 +83,12 @@ full rule text for each agent lives in its own file.
   requirements — that is `spec-creator`'s job.
 - **Permissions (tools)**: `Read, Grep, Glob` — read-only, no Write/Edit.
 - **Model**: `sonnet`
-- **Input**: a `clarified`/`approved` spec with AC-IDs. Without AC-IDs, or a
-  `draft` with blocking `[NEEDS CLARIFICATION]` markers, it returns
-  "Blocked" and sends the work back to `spec-creator` instead of planning.
+- **Input**: an `approved` spec with AC-IDs, taken as given (no per-AC
+  requirements audit). Without AC-IDs, a non-`approved` status, or an AC
+  that can't be built as written, it returns "Blocked" and sends the work
+  back to `spec-creator` instead of planning.
 - **Output**: an Implementation Plan (markdown) — Goal & Scope,
-  Requirements check, Questions, Recommendations, Modules affected,
+  Assumptions, Recommendations, Modules affected,
   Constraints & conventions, Relevant INSIGHTS.md notes, Plan tasks (each
   with AC-IDs/module/skill/dependency), AC coverage, Test plan, Out of
   scope, Risks, Execution mode (multi- vs single-agent, for the user).

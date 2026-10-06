@@ -48,7 +48,7 @@ skills, or write code — that is `implementation-planner`'s and `implementer`'s
    change the index row with `Edit`, never by rewriting `README.md`. When
    updating an existing spec, read it first and change it section by
    section with `Edit` — the user may have edited it by hand since your last
-   pass, and those edits must survive. Every update adds a §15 Changelog
+   pass, and those edits must survive. Every update adds a §17 Changelog
    line.
 4. **Status lifecycle:** `draft → clarified → approved → implemented`. You
    may set only `draft` (one or more `[NEEDS CLARIFICATION]` markers remain)
@@ -121,7 +121,7 @@ Input: the user's answers, research report paths/abstracts, and your
 Discovery Report.
 
 1. Resolve every answered question; carry every unanswered or deferred one
-   into the spec as an inline `[NEEDS CLARIFICATION]` and into §13.
+   into the spec as an inline `[NEEDS CLARIFICATION]` and into §15.
 2. Write the spec using the template below, then update the folder's
    `README.md` index row (`| [<slug>.md](<slug>.md) — <one line> | draft |`).
    For a root `specs/` spec, the row also lists the modules it touches.
@@ -143,7 +143,7 @@ implementation guidance: a spec says *what* and *where it belongs*, never
 | [onion-architecture](../skills/onion-architecture/SKILL.md) | §1 The one rule, §3 Module anatomy | C4 — which backend module/layer owns new logic |
 | [frontend-ui-architecture](../skills/frontend-ui-architecture/SKILL.md) | §6 Where business logic lives, §7 State placement | C2/C4 — e.g. a filter that must survive reload lives in the URL, which is a requirement |
 | [security](../skills/security/SKILL.md) | "OWASP Top 10:2025" table, "Agentic AI Security" | C6 — NFRs for untrusted PR content, prompt injection, secrets |
-| [mermaid-diagram](../skills/mermaid-diagram/SKILL.md) | "Sequence Diagrams" | the §8 diagram |
+| [mermaid-diagram](../skills/mermaid-diagram/SKILL.md) | "Sequence Diagrams" | the §9 diagram |
 
 Implementation skills (`zod`, `drizzle-orm-patterns`,
 `postgresql-table-design`, `fastify-best-practices`, `next-best-practices`,
@@ -186,7 +186,7 @@ your value — a spec that only restates the design is a failure.
   of a spinner — layout shift on the PR list"), each with the reason and
   its cost. Proposals are **offered, never adopted**: they go to the user
   in Pass 1; only accepted ones enter the spec as requirements, rejected
-  ones go to §14 Out of scope with "rejected by user".
+  ones go to §16 Out of scope with "rejected by user".
 
 ## EARS acceptance criteria
 
@@ -235,8 +235,8 @@ Actors, entry points, step-by-step flow, a states table
 (state · trigger · what the user sees). Design sources analyzed, one line each.
 
 ## 5. Design analysis
-Gaps · Uncovered edge cases · Module interaction · UX improvements
-(each marked accepted / rejected / [NEEDS CLARIFICATION]).
+Gaps · Module interaction · UX improvements (each marked accepted /
+rejected / [NEEDS CLARIFICATION]). Edge cases go to §10, not here.
 
 ## 6. Decisions
 | # | Decision | Rationale | Source (user answer / code / research) |
@@ -245,20 +245,36 @@ Gaps · Uncovered edge cases · Module interaction · UX improvements
 DB changes, `@devdigest/shared` contract changes (both copies), wire DTO
 shape, migration/backfill — or "none".
 
-## 8. Module interaction
+## 8. Inputs & provenance
+Every input the feature consumes (DB rows, API responses, files, settings,
+LLM context, user input) — one row each, so nothing is assumed to "just be
+there". For an LLM feature, also state the input budget with its unit
+(e.g. 8,000 tokens via the project tokenizer) and the trim order.
+| Input | Source (`file:line` / endpoint / table) | Trust (trusted / untrusted) | When absent or degraded | Cap / budget |
+
+## 9. Module interaction
 Which module owns what; request/response path; failure propagation.
 A mermaid sequence diagram when ≥3 participants.
 
-## 9. Acceptance criteria (EARS)
+## 10. Edge cases
+Walk C5 explicitly: invalid/missing input, empty results, concurrency and
+re-runs, partial failure, limits/oversized input, LLM failure/timeout or
+invalid output, stale data, deleted or unimported entities, security
+(untrusted text, invented paths/IDs).
+| # | Case | Expected behaviour | AC-ID |
+Every row maps to an AC (usually an Unwanted-behaviour one) or says
+"out of scope — §16".
+
+## 11. Acceptance criteria (EARS)
 | ID | Pattern | Requirement | Category (C1–C6) |
 
-## 10. Non-functional requirements
+## 12. Non-functional requirements
 | ID | Requirement | Measure / threshold |
 
-## 11. Traceability
+## 13. Traceability
 | Req ID | Goal / Decision | Module(s) | Likely files/areas | Verification |
 
-## 12. Verification hints
+## 14. Verification hints
 Per requirement group: test type (unit / Testcontainers `*.it.test.ts` /
 RTL / e2e flow) and the module's documented command from its CLAUDE.md.
 Tests will be named after the AC they verify (`it('AC-3: …')`) — that is
@@ -266,13 +282,13 @@ how `plan-verifier` traces each AC to evidence, so every AC must be
 testable at some level; say which. Hints only — `implementation-planner`
 owns the test plan.
 
-## 13. Open questions
+## 15. Open questions
 Index of every remaining `[NEEDS CLARIFICATION]`, blocking vs non-blocking.
 
-## 14. Out of scope
+## 16. Out of scope
 Including UX proposals the user rejected.
 
-## 15. Changelog
+## 17. Changelog
 | Date | Change | Reason / source |
 ```
 
@@ -282,18 +298,22 @@ Report each item as pass/fail; fix every fail you can before returning.
 
 - [ ] Only the spec file and its folder's `README.md` were written, both in
       an allowed folder; multi-module feature → root `specs/`.
-- [ ] Every requirement in §9/§10 is a valid EARS sentence with one `shall`,
+- [ ] Every requirement in §11/§12 is a valid EARS sentence with one `shall`,
       a concrete `<system>`, and no vague terms.
 - [ ] Every fallible event-driven AC has an unwanted-behaviour pair.
+- [ ] §8 Inputs & provenance lists every input with a source, trust level
+      and absent/degraded behaviour; an LLM feature states its input
+      budget with the unit.
+- [ ] Every §10 Edge case row maps to an AC-ID or to §16 Out of scope.
 - [ ] All six categories were walked; each either has requirements or an
       explicit "n/a — <reason>".
-- [ ] Every AC/NFR appears in §11 Traceability with a verification hint.
+- [ ] Every AC/NFR appears in §13 Traceability with a verification hint.
 - [ ] No unsourced fact: each claim about existing code has `file:line`;
-      every other unknown is `[NEEDS CLARIFICATION]` and listed in §13.
+      every other unknown is `[NEEDS CLARIFICATION]` and listed in §15.
 - [ ] Status matches markers: `draft` iff ≥1 marker, else `clarified`;
       index row Status matches the file. Every marker carries `:blocking`
-      or `:minor`, and §13 lists exactly the markers in the body.
-- [ ] Under ~300 lines; an update added a §15 Changelog line and kept the
+      or `:minor`, and §15 lists exactly the markers in the body.
+- [ ] Under ~300 lines; an update added a §17 Changelog line and kept the
       user's manual edits.
 - [ ] Nothing contradicts root CLAUDE.md conventions (wire DTO snake_case,
       duplicated `@devdigest/shared`, generated migrations, enum casing) or
