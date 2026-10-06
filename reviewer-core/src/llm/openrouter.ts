@@ -40,6 +40,7 @@ export class OpenRouterProvider implements LLMProvider {
   readonly id: 'openai' | 'openrouter';
   private client: OpenAI;
   private baseURL: string;
+  private timeoutMs: number;
   private apiKey: string;
   private estimateCost?: OpenRouterProviderOptions['estimateCost'];
 
@@ -48,10 +49,11 @@ export class OpenRouterProvider implements LLMProvider {
     this.apiKey = apiKey;
     this.baseURL = opts.baseURL ?? 'https://openrouter.ai/api/v1';
     this.estimateCost = opts.estimateCost;
+    this.timeoutMs = opts.timeoutMs ?? 90_000;
     this.client = new OpenAI({
       apiKey,
       baseURL: this.baseURL,
-      timeout: opts.timeoutMs ?? 90_000,
+      timeout: this.timeoutMs,
       maxRetries: opts.maxRetries ?? 2,
     });
   }
@@ -64,6 +66,8 @@ export class OpenRouterProvider implements LLMProvider {
     let tokensOut = 0;
     let costFromApi: number | null = null;
     let lastRaw = '';
+    const requestOptions =
+      req.maxRetries === 0 ? { maxRetries: 0, timeout: req.timeoutMs ?? this.timeoutMs } : undefined;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await this.client.chat.completions.create({
@@ -81,7 +85,7 @@ export class OpenRouterProvider implements LLMProvider {
         // OpenRouter usage accounting — ask it to return the REAL generation
         // cost (USD) in `usage.cost`, instead of estimating from a price book.
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
-      });
+      }, requestOptions);
 
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
       // error / moderation / free-tier limit in the body) — surface it.

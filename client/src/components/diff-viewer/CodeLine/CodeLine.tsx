@@ -34,6 +34,8 @@ export function CodeLine({
   findingActionPending,
   repoFullName,
   headSha,
+  target: isTarget,
+  rowRef,
 }: {
   ln: Line;
   path: string;
@@ -45,6 +47,9 @@ export function CodeLine({
   findingActionPending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Deep-link target line: highlighted and exposed via `rowRef` for scrolling. */
+  target?: boolean;
+  rowRef?: React.Ref<HTMLDivElement>;
 }) {
   const t = useTranslations("shell");
   const [hover, setHover] = React.useState(false);
@@ -71,7 +76,11 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind, sevColor)}>
+      <div
+        ref={rowRef}
+        style={lineRowFor(ln.kind, sevColor, isTarget)}
+        aria-current={isTarget ? "true" : undefined}
+      >
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button

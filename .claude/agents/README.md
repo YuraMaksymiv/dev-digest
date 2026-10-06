@@ -1,19 +1,52 @@
 # Agents — set map
 
-Nine specialized agents for this repo: `brainstorm` (optional, when a task
-has genuinely multiple viable approaches) and `researcher` feed `planner`,
-which feeds `implementer`, whose output is checked by `test-writer`,
-`architecture-reviewer`, `security-reviewer`, and `plan-verifier`, and
-finally written up by `doc-writer`. This is an index, not a duplicate — the
+Eleven specialized agents for this repo: `spec-creator` turns a feature
+request into an approved spec first; `brainstorm` (optional, when a task
+has genuinely multiple viable approaches) and `researcher` feed
+`implementation-planner`, which feeds `implementer`, whose output is
+checked by `plan-verifier`, `architecture-reviewer`, `security-reviewer`
+and the `pr-self-review` skill, covered by `test-writer`, executed by
+`test-runner`, and finally written up by `doc-writer`. This is an index, not a duplicate — the
 full rule text for each agent lives in its own file.
+
+## spec-creator
+
+- **File**: [spec-creator.md](spec-creator.md)
+- **Responsibility**: writes a feature spec for Spec-Driven Development
+  before planning — analyzes the request and user-supplied design sources
+  (text, Figma exports, existing code) for gaps, uncovered edge cases,
+  cross-module interaction and UX improvements; asks blocking questions
+  across six clarification categories; writes EARS acceptance criteria,
+  NFRs, traceability and verification hints. Never guesses — unknowns are
+  `[NEEDS CLARIFICATION]`.
+- **Permissions (tools)**: `Read, Grep, Glob, Write, Edit` plus read-only
+  devdigest-mcp (`get_conventions`, `get_blast_radius`, `get_findings`,
+  `list_agents`; no `run_agent_on_pr`). Write is limited by prompt rule to
+  one spec file and its `specs/README.md` index row — `<module>/specs/` for
+  a single-module feature, root `specs/` for a multi-module one.
+- **Model**: `sonnet`
+- **Input**: Pass 1 — feature request + design sources. Pass 2 (resumed via
+  SendMessage) — the user's answers and `researcher` report paths/abstracts.
+- **Output**: Pass 1 — Discovery Report (blocking/non-blocking questions,
+  design analysis, research requests; writes nothing). Pass 2 — the spec
+  (`draft`/`clarified`) and a Spec Report with self-check results.
+- **Explicitly out of scope**: implementation steps and skill assignment
+  (`implementation-planner`), setting `approved` (user) or `implemented` (`doc-writer`),
+  dispatching `researcher` itself (the orchestrator does that).
+- **Sources its rules are grounded in**:
+  - Existing specs (`server/specs/run-cost.md` — Summary/Current
+    state/Decisions structure) and each `specs/README.md` Status index
+  - EARS — Mavin et al., "Easy Approach to Requirements Syntax", RE'09
+  - Root [../../CLAUDE.md](../../CLAUDE.md) conventions and "Multi-agent
+    orchestration" rules for handing `researcher` reports over
 
 ## brainstorm
 
 - **File**: [brainstorm.md](brainstorm.md)
 - **Responsibility**: compares 2-3 candidate approaches to a task, with a
   complexity/performance/maintainability/risk tradeoff table, BEFORE a
-  Development Plan is written — narrower and earlier than `planner`, which
-  commits to and sequences one plan. Hands off to `planner` once a
+  Implementation Plan is written — narrower and earlier than `implementation-planner`, which
+  commits to and sequences one plan. Hands off to `implementation-planner` once a
   direction is chosen.
 - **Permissions (tools)**: `Read, Grep, Glob` — read-only, no Write/Edit.
 - **Model**: `sonnet`
@@ -25,7 +58,7 @@ full rule text for each agent lives in its own file.
   Options (each grounded in existing code with file:line evidence),
   Tradeoff table, Recommendation with justification, Rejected alternatives,
   Handoff note.
-- **Explicitly out of scope**: writing the Development Plan itself (`planner`'s
+- **Explicitly out of scope**: writing the Implementation Plan itself (`implementation-planner`'s
   job) and writing/editing any code (`implementer`'s job).
 - **Sources its rules are grounded in**:
   - [../../CLAUDE.md](../../CLAUDE.md) — root repo map, "Do not touch" list
@@ -34,27 +67,33 @@ full rule text for each agent lives in its own file.
   - The [onion-architecture](../skills/onion-architecture/SKILL.md) and
     [frontend-ui-architecture](../skills/frontend-ui-architecture/SKILL.md)
     skills — a fitness check on each option, not the full review
-  - `planner.md` — the closest analog this agent's structure and rule
+  - `implementation-planner.md` — the closest analog this agent's structure and rule
     discipline (file:line evidence requirement) is modeled on
 
-## planner
+## implementation-planner
 
-- **File**: [planner.md](planner.md)
-- **Responsibility**: turns a task (feature/bugfix/refactor) into a
-  structured Development Plan before any code is written. Identifies affected
-  modules, pulls constraints and notes from `INSIGHTS.md`, and — critically —
-  assigns each plan step the exact skill the `implementer` must apply.
+- **File**: [implementation-planner.md](implementation-planner.md)
+- **Responsibility**: turns an existing spec (requirements with `AC-`/`NFR-`
+  IDs) into a structured Implementation Plan before any code is written.
+  Checks every AC against the real code (Clear / Ambiguous / Conflicting /
+  Infeasible), raises targeted questions, recommends improvements, maps
+  every task to the AC-IDs it satisfies and to the exact skill the
+  `implementer` must apply, and ends by asking the user to choose
+  multi-agent or single-agent execution. Never writes, rewrites or elicits
+  requirements — that is `spec-creator`'s job.
 - **Permissions (tools)**: `Read, Grep, Glob` — read-only, no Write/Edit.
 - **Model**: `sonnet`
-- **Input**: a task description (goal, scope, constraints). If the task is
-  vague, the agent asks clarifying questions first instead of planning
-  blind.
-- **Output**: a Development Plan (markdown) — Goal & Scope, Modules affected,
-  Constraints & conventions, Relevant INSIGHTS.md notes, Plan steps (mapped
-  to module/skill/dependency), Skill map, Test plan, Out of scope, Open
-  questions/risks.
-- **Explicitly out of scope**: architecture review and security review —
-  separate agents/gates, not this one.
+- **Input**: an `approved` spec with AC-IDs, taken as given (no per-AC
+  requirements audit). Without AC-IDs, a non-`approved` status, or an AC
+  that can't be built as written, it returns "Blocked" and sends the work
+  back to `spec-creator` instead of planning.
+- **Output**: an Implementation Plan (markdown) — Goal & Scope,
+  Assumptions, Recommendations, Modules affected,
+  Constraints & conventions, Relevant INSIGHTS.md notes, Plan tasks (each
+  with AC-IDs/module/skill/dependency), AC coverage, Test plan, Out of
+  scope, Risks, Execution mode (multi- vs single-agent, for the user).
+- **Explicitly out of scope**: spec/requirements authoring, architecture
+  review and security review — separate agents/gates, not this one.
 - **Sources its rules are grounded in**:
   - [../../CLAUDE.md](../../CLAUDE.md) — root repo map, non-default
     conventions, "Do not touch" list
@@ -71,46 +110,52 @@ full rule text for each agent lives in its own file.
 ## implementer
 
 - **File**: [implementer.md](implementer.md)
-- **Responsibility**: executes an already-produced Development Plan (from
-  `planner`, or given directly) — applies the skill assigned to each step,
-  writes/edits code in `client/`, `server/`, `reviewer-core/`, runs the
-  existing test/typecheck/arch-check commands for the touched packages.
-  Verifies only that its own diff matches the plan.
+- **Responsibility**: executes an already-produced Implementation Plan (from
+  `implementation-planner`, or given directly), usually one task group per
+  instance — applies the skill assigned to each task, writes/edits code in
+  `client/`, `server/`, `reviewer-core/`, `mcp/`, `e2e/`, runs **scoped**
+  checks (`vitest related … --exclude '**/*.it.test.ts'`, truncated
+  typecheck) once per task group. Full suites and integration tests are
+  left to `test-runner`. Also has a fix mode for a reviewer's findings
+  table.
 - **Permissions (tools)**: `Read, Grep, Glob, Bash, Edit, Write`.
 - **Model**: `sonnet`
-- **Input**: a Development Plan (goal, affected modules, ordered steps, a
-  skill per step). Without a plan, or with a step missing an assigned skill,
-  the agent stops and asks rather than guessing.
-- **Output**: an Implementation Report (markdown) — Steps completed
-  (files/skill), Commands run & results, Deviations from plan, Self-check
-  (diff vs. plan, typecheck/tests), Deferred to review agents.
+- **Input**: the saved plan `<spec folder>/<slug>.plan.md` and the task
+  group to execute — or, in fix mode, a findings table.
+- **Output**: an Implementation Report (markdown) — Tasks completed
+  (AC-IDs/files/skill), Commands run, Deviations, Self-check, a **Diff
+  digest** (file → one-line change → AC-IDs, plus key hunks) that every
+  review agent reads first, and fix-mode results.
 - **Explicitly out of scope**: architecture review, security review, and
   running the `pr-self-review` skill — all of these are a later, separate
   gate.
 - **Sources its rules are grounded in**:
   - [../../CLAUDE.md](../../CLAUDE.md) — naming conventions table, "Do not
     touch" list (migrations, lock files, `client/src/vendor/ui/`)
-  - The Development Plan from `planner` — its Skill map and Test plan are
-    the direct source for which skill and which command to apply per step
+  - The Implementation Plan from `implementation-planner` — its Plan tasks
+    table and Test plan are the direct source for which skill and which
+    command to apply per task
   - Each touched module's own `CLAUDE.md` — the exact
     typecheck/test/`arch` commands
 
 ## test-writer
 
 - **File**: [test-writer.md](test-writer.md)
-- **Responsibility**: writes tests for a component/route/service/helper
-  across both sides of the stack — React Testing Library conventions on
-  `client/`, and this repo's actual backend conventions (Testcontainers
-  fixture, shared adapter mocks, hermetic `reviewer-core/`) on `server/` and
-  `reviewer-core/`, embedded directly since no dedicated backend-testing
+- **Responsibility**: writes tests from the spec's ACs — every test named
+  `AC-<n>: …` so `plan-verifier` can trace it — across the stack: React
+  Testing Library conventions on `client/`, hermetic fakes on `mcp/`,
+  deterministic `e2e/flows` when the Test plan names one, and this repo's
+  actual backend conventions (Testcontainers fixture, shared adapter mocks,
+  hermetic `reviewer-core/`) on `server/` and `reviewer-core/`, embedded directly since no dedicated backend-testing
   skill exists yet. Does not implement or fix application code — a test that
   needs a source change is reported, not patched around.
 - **Permissions (tools)**: `Read, Grep, Glob, Bash, Edit, Write`.
 - **Model**: `sonnet`
-- **Input**: a specific unit to test (component/route/service/helper), or an
-  Implementation Report from `implementer` naming what needs coverage.
-- **Output**: a Test Report (markdown) — Tests written, Commands run &
-  results, Coverage gaps, Deviations/blockers.
+- **Input**: spec ACs + the plan's Test plan + implementer's Diff digest;
+  or a specific unit to test.
+- **Output**: a Test Report (markdown) — Tests written (AC-IDs covered), AC
+  coverage table, Commands run & results, Coverage gaps,
+  Deviations/blockers.
 - **Sources its rules are grounded in**:
   - The [react-testing-library](../skills/react-testing-library/SKILL.md)
     skill — frontend query/behavior conventions
@@ -180,12 +225,32 @@ full rule text for each agent lives in its own file.
   - `architecture-reviewer.md` — the closest analog this agent's structure
     (and its `## Scope note` disambiguation pattern) is modeled on
 
+## test-runner
+
+- **File**: [test-runner.md](test-runner.md)
+- **Responsibility**: runs the documented typecheck / unit /
+  Docker-backed integration / arch / e2e commands for the given packages
+  and returns a compact pass/fail table with at most 3 expanded failures —
+  so no raw test log enters the orchestrator's or implementer's context.
+  Never edits, diagnoses or fixes.
+- **Permissions (tools)**: `Bash, Read, Grep`.
+- **Model**: `haiku` — mechanical execution, no judgment.
+- **Input**: packages + which checks (defaults per package).
+- **Output**: a Test Run Report — results table, failures
+  (`file:line`, test name, assertion), skipped checks with reason.
+- **Why it exists**: subagents can't spawn subagents, so `implementer`
+  can't delegate to it — instead `implementer` runs only scoped tests and
+  the orchestrator calls `test-runner` once for the full + integration
+  suites after all task groups.
+
 ## plan-verifier
 
 - **File**: [plan-verifier.md](plan-verifier.md)
-- **Responsibility**: independently verifies that finished code satisfies
-  every item of a Development Plan or requirements list — one item at a
-  time, DONE/NOT DONE/PARTIAL with evidence. Deliberately does **not**
+- **Responsibility**: independently verifies, one item at a time
+  (DONE/NOT DONE/PARTIAL with evidence), in one of two modes: `tasks` —
+  right after `implementer`, every plan task `T<n>` is in the code;
+  `acceptance` — final gate, every spec `AC`/`NFR` has code **and** a
+  passing test named with its AC-ID. Deliberately does **not**
   re-check code quality (`pr-self-review`'s job), architecture
   (`architecture-reviewer`'s job), or security (the `security` skill's job) —
   its only job is plan-to-code traceability, and it must never collapse that
@@ -193,9 +258,11 @@ full rule text for each agent lives in its own file.
 - **Permissions (tools)**: `Read, Grep, Glob, Bash` — read-only, no
   Write/Edit. May run a plan step's own named test command as evidence, not
   as a broader quality pass.
-- **Model**: `sonnet`
-- **Input**: a Development Plan (or explicit numbered requirements list) and
-  the diff/code it produced.
+- **Model**: `haiku` (`tasks` mode); the caller overrides to `sonnet` for
+  `acceptance` mode.
+- **Input**: mode + Implementation Plan (`tasks`) or spec (`acceptance`),
+  the implementer's Diff digest, and for `acceptance` the latest
+  `test-runner` report.
 - **Output**: a Verification Report (markdown) — a forced per-item table
   (Status + Evidence + Gap) and a counts-only verdict summary; no free-text
   "overall assessment" or suggestions section is allowed.
@@ -215,7 +282,7 @@ full rule text for each agent lives in its own file.
 
 - **File**: [doc-writer.md](doc-writer.md)
 - **Responsibility**: documents functionality that's already been built —
-  turns a Development Plan, PR, or diff into module documentation with
+  turns an Implementation Plan, PR, or diff into module documentation with
   diagrams. Knows which of a module's two doc locations to use: flips a
   matching `specs/<topic>.md`'s Status to `implemented` rather than
   duplicating it, or writes a new `docs/<topic>.md` when no matching spec
@@ -223,7 +290,7 @@ full rule text for each agent lives in its own file.
 - **Permissions (tools)**: `Read, Grep, Glob, Edit, Write` — no Bash by
   design; works from the given plan/diff/code, not from running commands.
 - **Model**: `sonnet`
-- **Input**: a Development Plan, PR description, or diff describing what was
+- **Input**: an Implementation Plan, PR description, or diff describing what was
   built, plus the module(s) it touched.
 - **Output**: updated/new files under a module's `docs/` or `specs/` (with
   its index `README.md` updated to match) and a Doc Report (markdown) —
@@ -258,34 +325,55 @@ full rule text for each agent lives in its own file.
 
 ## Typical flow
 
+Run manually: `spec-creator` → (you approve) → `implementation-planner` →
+save the plan → **`/run-plan <plan.md>`** ([skill](../skills/run-plan/SKILL.md)),
+which runs everything from `implementer` to `plan-verifier [acceptance]`,
+including the architecture fix rounds. `test-writer` is currently left out
+of `/run-plan` to save tokens; the full chain below shows where it slots back in.
+
 ```
+spec-creator  pass 1 → Discovery Report ──(user answers ∥ researcher ×N)──▶ pass 2 → spec
+        │     ⏸ user sets Status: approved
+        ▼
 brainstorm (optional, when there's a real choice of approach)
-        │
         ▼
-researcher (as needed, independent)
-        │
+implementation-planner → Implementation Plan (tasks → AC-IDs → skills)
+        │     ⏸ user picks multi-/single-agent → plan saved as <spec folder>/<slug>.plan.md
+        ▼   ── new chat from here on ──
+implementer ×N  (contract group first, then parallel groups on disjoint files)
         ▼
-   planner  →  Development Plan (with Skill map)
-        │
+test-runner        full suites + *.it.test.ts, once
         ▼
- implementer →  Implementation Report
-        │
+plan-verifier  [tasks]        NOT DONE / PARTIAL ──▶ implementer (fix mode)
         ▼
- test-writer  →  Test Report (adds coverage for the change)
-        │
-        ├───────────────────┬───────────────────┐
-        ▼                   ▼                   ▼
-architecture-reviewer   plan-verifier    security-reviewer
-        │                   │                   │
-        └───────────────────┼───────────────────┘
-                             ▼
-              doc-writer  →  updated docs/ or specs/
-                   │
-                   ▼
-        (separate gate: pr-self-review — not in these agents)
+architecture-reviewer ∥ security-reviewer* ∥ pr-self-review (bugs, skill-routed)
+        │     findings ──▶ implementer (fix mode) ──▶ rerun only the reviewer that found them (≤2 rounds)
+        ▼     ⏸ optional checkpoint commit (user approves)
+test-writer        tests named `AC-<n>: …`
+        ▼
+test-runner
+        ▼
+plan-verifier  [acceptance, model: sonnet]   every AC → code + passing AC-named test
+        ▼
+doc-writer → spec Status: implemented · engineering-insights end-of-session check
+        ▼
+/workflow-retro   manual only, same session → proposals + section in docs/retro/ledger.md
 ```
 
-`architecture-reviewer`, `plan-verifier`, and `security-reviewer` are
-independent, read-only checks and can run in any order or in parallel once
-`test-writer` is done; `doc-writer` runs last, once the change is verified
-clean.
+\* `security-reviewer` runs when the spec has a security NFR or the diff
+touches auth, input handling, or secrets.
+
+Why this order:
+
+- `plan-verifier [tasks]` runs **before** tests and reviews — it is cheap,
+  and sending unfinished tasks back first avoids writing tests and reviewing
+  code that is about to change.
+- Reviews run **before** `test-writer`, so review-driven fixes don't break
+  freshly written tests. (Test-first is the stronger SDD variant for
+  `server/`/`reviewer-core/`: run `test-writer` from the ACs before
+  `implementer` and let `implementer` make them pass.)
+- `architecture-reviewer` checks layering only; correctness bugs come from
+  `pr-self-review`, which runs in the main session (it fans out its own
+  subagents, which a subagent can't do).
+- Every reviewer starts from the implementer's Diff digest instead of
+  re-reading the touched files.

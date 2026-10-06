@@ -92,6 +92,10 @@ export class OpenAIProvider implements LLMProvider {
     let tokensIn = 0;
     let tokensOut = 0;
     let lastRaw = '';
+    const singleRequest = req.maxRetries === 0;
+    const requestOptions = singleRequest
+      ? { maxRetries: 0, timeout: req.timeoutMs ?? DEFAULT_TIMEOUT }
+      : undefined;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await withRetry(() =>
@@ -104,9 +108,10 @@ export class OpenAIProvider implements LLMProvider {
               type: 'json_schema',
               json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
             },
-          }),
+          }, requestOptions),
           req.timeoutMs ?? DEFAULT_TIMEOUT,
         ),
+        singleRequest ? { retries: 0 } : undefined,
       );
       lastRaw = res.choices?.[0]?.message?.content ?? '';
       tokensIn += res.usage?.prompt_tokens ?? 0;

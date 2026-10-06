@@ -1,17 +1,65 @@
 {
   "title": "Onboarding Tour",
-  "sections": "Sections",
-  "sectionCount": "{count} sections",
-  "regenerate": "Regenerate",
-  "regenerating": "Regenerating…",
-  "unknownError": "Unknown error",
-  "generate": {
-    "title": "Generate onboarding tour",
-    "body": "DevDigest indexes the repo and specs, then writes a 5-section guided tour: overview, architecture, key modules, getting started, and conventions & gotchas.",
-    "cta": "Generate onboarding tour",
-    "generating": "Generating…"
+  "page": {
+    "crumbOnboarding": "Onboarding Tour",
+    "headingPrefix": "Onboarding for ",
+    "repoFallback": "this repository",
+    "subtitle": "Generated from index of {indexed} of {total} files · last refreshed {when}",
+    "subtitleNever": "Generated from index of {indexed} of {total} files · not generated yet",
+    "stale": "Stale",
+    "staleTitle": "The index has moved on since this tour was generated",
+    "usage": "{model} · {tokens} tokens · {cost}"
+  },
+  "actions": {
+    "generate": "Generate",
+    "regenerate": "Regenerate",
+    "regenerating": "Regenerating…",
+    "generating": "Generating…",
+    "retry": "Retry",
+    "shareLink": "Share link",
+    "linkCopied": "Link copied",
+    "open": "Open",
+    "openAria": "Open {path} on GitHub",
+    "copy": "Copy",
+    "copyAria": "Copy command: {command}",
+    "copied": "Copied",
+    "expand": "Expand {title}",
+    "collapse": "Collapse {title}"
+  },
+  "toc": {
+    "label": "ON THIS PAGE"
+  },
+  "sections": {
+    "architecture": "Architecture overview",
+    "criticalPaths": "Critical paths",
+    "runLocally": "How to run locally",
+    "readingPath": "Guided reading path",
+    "firstTasks": "First tasks"
+  },
+  "empty": {
+    "section": "Nothing to show here yet.",
+    "unranked": "Unranked candidates — generate the tour to get a ranked list.",
+    "noFiles": "No files",
+    "scoreAria": "Score {score}"
+  },
+  "banner": {
+    "not_generated": "Not generated yet. This is a deterministic outline from the index — generate the tour to get the full write-up.",
+    "index_degraded": "Index degraded ({reason}). Showing a deterministic outline.",
+    "index_degradedNoReason": "Index degraded. Showing a deterministic outline.",
+    "no_clone": "This repository is not cloned.",
+    "llm_failed": "Generation failed. Showing the last available content.",
+    "invalid_output": "Model output was invalid. Showing the last available content.",
+    "requestFailed": "The request failed. Current content is kept."
+  },
+  "noClone": {
+    "title": "Repository not indexed",
+    "body": "The onboarding tour is built from the local clone and its index. Index the repository first.",
+    "cta": "Index repository",
+    "indexing": "Indexing…"
   },
   "loadError": {
     "title": "Couldn’t load the onboarding tour"
-  }
+  },
+  "unknownError": "Unknown error",
+  "diagramAria": "Architecture diagram"
 }

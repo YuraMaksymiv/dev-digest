@@ -33,7 +33,7 @@ export const SOURCE_ICONS: Record<SkillSource, IconName> = {
 export interface EditorTab {
   key: string;
   labelKey: string;
-  icon: "Settings" | "Eye" | "History";
+  icon: "Settings" | "Eye" | "History" | "FileText";
 }
 
 /**
@@ -43,6 +43,7 @@ export interface EditorTab {
  */
 export const TABS: readonly EditorTab[] = [
   { key: "config", labelKey: "editor.tabs.config", icon: "Settings" },
+  { key: "context", labelKey: "editor.tabs.context", icon: "FileText" },
   { key: "preview", labelKey: "editor.tabs.preview", icon: "Eye" },
   { key: "versions", labelKey: "editor.tabs.versions", icon: "History" },
 ];

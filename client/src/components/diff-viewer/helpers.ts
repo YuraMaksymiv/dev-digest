@@ -3,6 +3,12 @@ import { HUNK_HEADER_RE } from "./constants";
 import type { PrFile } from "@/lib/types";
 import type { SmartDiffGroup, SmartDiffRole } from "@devdigest/shared";
 
+/** Deep-link target inside the diff: a file and, optionally, a line in its new version. */
+export interface FocusTarget {
+  file: string;
+  line: number | null;
+}
+
 export interface Line {
   kind: "add" | "del" | "ctx" | "hunk";
   text: string;

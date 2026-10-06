@@ -8,7 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { formatCost } from "@/lib/format-cost";
 import { PROMPT_COLORS } from "../../constants";
-import { formatSeconds, formatTokens } from "../../helpers";
+import { formatSeconds, formatTokens, groupSpecDetails } from "../../helpers";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -37,8 +37,34 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
             <span>{t("trace.config.items", { count: trace.memory_pulled.length })}</span>
           </Row>
           <Row label={t("trace.config.specsRead")}>
-            <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
+            <div style={trace.specs_detail?.length ? s.specsList : s.specsWrap}>
+              {trace.specs_detail?.length ? (
+                (groupSpecDetails(trace.specs_detail) ?? [{ group: null, items: trace.specs_detail }]).map(
+                  (g) => (
+                    <React.Fragment key={g.group ?? "all"}>
+                      {g.group && (
+                        <span style={s.specGroupHead}>{t(`trace.config.specGroup.${g.group}`)}</span>
+                      )}
+                      {g.items.map((sp, i) => (
+                        <span key={i} style={s.specDetail}>
+                          <span className="mono" style={s.spec}>
+                            {sp.path}
+                          </span>
+                          <span className="mono" style={s.specMeta}>
+                            {t("trace.config.specsTokens", { count: sp.tokens })} ·{" "}
+                            {sp.source === "skill"
+                              ? t("trace.config.specFromSkill", { name: sp.source_name ?? "" })
+                              : t("trace.config.specFromAgent")}
+                          </span>
+                          {sp.status !== "read" && (
+                            <span style={s.specFlag}>{t(`trace.config.specStatus.${sp.status}`)}</span>
+                          )}
+                        </span>
+                      ))}
+                    </React.Fragment>
+                  ),
+                )
+              ) : trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
                 trace.specs_read.map((sp, i) => (

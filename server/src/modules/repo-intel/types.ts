@@ -134,6 +134,11 @@ export interface RepoMapResult {
  * CI may parse diff-scoped on the hot path. Indexing runs through
  * JobRunner handlers in studio, inline in the CI runner.
  */
+/** Outcome of `enqueueResync`: a job id, or a degraded marker (never throws). */
+export type EnqueueResyncResult =
+  | { jobId: string; degraded?: undefined }
+  | { jobId?: undefined; degraded: true; reason: string };
+
 export interface RepoIntel {
   // --- Indexing -----------------------------------------------------------
   /** Full (re)index of a repo. */
@@ -142,6 +147,12 @@ export interface RepoIntel {
   refreshIndex(repoId: string): Promise<IndexResult>;
   /** Current index state — ALWAYS works, even degraded. */
   getIndexState(repoId: string): Promise<IndexState>;
+  /**
+   * Queue a resync (fetch + incremental refresh) in the background. Single-flight
+   * per workspace+repo: a call while one is queued/running returns the same job.
+   * Never throws; resolves with a degraded marker when the job cannot be queued.
+   */
+  enqueueResync(workspaceId: string, repoId: string): Promise<EnqueueResyncResult>;
 
   // --- Reads --------------------------------------------------------------
   getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult>;
@@ -169,4 +180,8 @@ export interface RepoIntel {
     opts?: { exclude?: string[] },
   ): Promise<string[]>;
   getCriticalPaths(repoId: string): Promise<string[][]>;
+  /** Every ranked file (unfiltered), rank desc. `[]` when the flag is off. */
+  getRankedFiles(repoId: string, limit?: number): Promise<{ path: string; rank: number }[]>;
+  /** Files that declare HTTP endpoints (`METHOD /path`). `[]` when the flag is off. */
+  getEndpointFacts(repoId: string): Promise<{ path: string; endpoints: string[] }[]>;
 }

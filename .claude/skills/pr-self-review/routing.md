@@ -27,6 +27,7 @@ together.
 | 15 | `e2e/flows/*.json` | flow order + naming check (no LLM tier) |
 | 16 | `*.md`, `CLAUDE.md`, `INSIGHTS.md` | doc-consistency check (no LLM tier) |
 | 17 | `.github/workflows/**` · `scripts/**` | `security` (supply chain, secrets in CI) |
+| 18 | `client/src/**` · `server/src/**` · `reviewer-core/src/**` · `mcp/src/**` (non-test `.ts`/`.tsx`) | `general-reviewer` — prompt [`docs/agent-prompts/general-reviewer.md`](../../../docs/agent-prompts/general-reviewer.md), not a skill (correctness, edge cases, async, error handling) |
 
 ## Rules for using the table
 
@@ -39,6 +40,13 @@ the only question is whether an existing one was edited, which Phase 1 answers.
 
 **Row 13 is diff-scoped, always.** `security` on every changed file is affordable
 only because it sees hunks, not whole files.
+
+**Row 18 is diff-scoped, like row 13.** It is the only row that looks for plain
+logic bugs rather than convention breaks, so it runs on every non-test source
+file — but it sees hunks, not whole files. Its prompt assumes the Fastify/Drizzle
+stack; on `client/` files tell the subagent to apply only its correctness, edge
+case and async sections. Its findings cap at WARNING unless they fall into a
+[`critical.md`](critical.md) category (e.g. #5 data loss).
 
 **Row 2 is additive to row 1**, not a replacement — an App Router component still
 gets the React and architecture skills.

@@ -95,6 +95,10 @@ export class AnthropicProvider implements LLMProvider {
     let tokensIn = 0;
     let tokensOut = 0;
     let lastRaw = '';
+    const singleRequest = req.maxRetries === 0;
+    const requestOptions = singleRequest
+      ? { maxRetries: 0, timeout: req.timeoutMs ?? DEFAULT_TIMEOUT }
+      : undefined;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await withRetry(() =>
@@ -113,9 +117,10 @@ export class AnthropicProvider implements LLMProvider {
               },
             ],
             tool_choice: { type: 'tool', name: toolName },
-          }),
+          }, requestOptions),
           req.timeoutMs ?? DEFAULT_TIMEOUT,
         ),
+        singleRequest ? { retries: 0 } : undefined,
       );
       tokensIn += res.usage.input_tokens;
       tokensOut += res.usage.output_tokens;

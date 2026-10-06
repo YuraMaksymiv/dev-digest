@@ -8,7 +8,7 @@ import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
 import type { FindingActionKind, FindingRecord } from "@devdigest/shared";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
-import { parsePatch, type Line } from "../helpers";
+import { parsePatch, type FocusTarget, type Line } from "../helpers";
 import {
   buildThreads,
   keysForLine,
@@ -72,6 +72,7 @@ export function FileCard({
   findingActionPending,
   repoFullName,
   headSha,
+  focusTarget,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -82,12 +83,49 @@ export function FileCard({
   findingActionPending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Deep-link target for THIS file: opens the card, highlights it and scrolls to the line
+   * (or to the card when the line has no row). */
+  focusTarget?: FocusTarget | null;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const targetRowRef = React.useRef<HTMLDivElement>(null);
+  const scrolledKey = React.useRef<string | null>(null);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  const focused = !!focusTarget;
+  const targetLine = focusTarget?.line ?? null;
+  const targetKey = focusTarget ? `${focusTarget.file}:${targetLine ?? ""}` : null;
+  const targetIdx = React.useMemo(
+    () =>
+      targetLine == null
+        ? -1
+        : lines.findIndex((ln) => (ln.kind === "add" || ln.kind === "ctx") && ln.newNo === targetLine),
+    [lines, targetLine],
+  );
+
+  React.useEffect(() => {
+    if (targetKey) setOpen(true);
+  }, [targetKey]);
+
+  // Runs after the open state rendered, so the target row's ref is attached.
+  React.useEffect(() => {
+    if (!targetKey || scrolledKey.current === targetKey) return;
+    if (targetIdx >= 0) {
+      if (!open || !targetRowRef.current) return;
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      targetRowRef.current.scrollIntoView?.({
+        block: "center",
+        behavior: reduced ? "auto" : "smooth",
+      });
+    } else {
+      cardRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    }
+    scrolledKey.current = targetKey;
+  }, [targetKey, targetIdx, open]);
 
   const { byLine: findingsByLine, unmatched: unmatchedFindings } = React.useMemo(
     () => anchorFindings(findings ?? [], lines),
@@ -110,7 +148,7 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div ref={cardRef} style={focused ? { ...s.fileCard, ...s.fileCardFocused } : s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
@@ -151,6 +189,8 @@ export function FileCard({
                 findingActionPending={findingActionPending}
                 repoFullName={repoFullName}
                 headSha={headSha}
+                target={i === targetIdx}
+                rowRef={i === targetIdx ? targetRowRef : undefined}
               />
             ))
           )}

@@ -4,6 +4,7 @@ import {
   text,
   integer,
   boolean,
+  doublePrecision,
   jsonb,
   timestamp,
   vector,
@@ -123,4 +124,12 @@ export const onboarding = pgTable('onboarding', {
     .references(() => repos.id, { onDelete: 'cascade' }),
   json: jsonb('json').notNull(),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  llmCalls: integer('llm_calls'),
+  durationMs: integer('duration_ms'),
+  generatedSha: text('generated_sha'),
 });

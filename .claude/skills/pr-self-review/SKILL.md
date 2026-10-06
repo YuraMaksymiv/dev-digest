@@ -1,6 +1,6 @@
 ---
 name: pr-self-review
-version: 1.0.0
+version: 1.1.0
 description: "Self-review gate for DevDigest: reviews every open local change before a pull request is opened, routes each changed file to the skills that apply to it (UI skills on client files, backend architecture skills on server files), and refuses to proceed when a confirmed CRITICAL finding was introduced by the diff. Use this skill whenever the user is about to open, push, or prepare a pull request — including when they only say 'open a PR', 'push this', 'is this ready to merge', 'review my changes', 'check before I push', 'self review', or 'did I break anything' — and whenever they ask for a pre-merge or pre-PR check of uncommitted work. Covers diff collection across committed/staged/unstaged/untracked, deterministic gates (typecheck, tests, architecture, secrets, repo rules), skill-routed review, and the blocking verdict."
 metadata:
   tags: code-review, pre-pr, gate, quality, diff, ci, git

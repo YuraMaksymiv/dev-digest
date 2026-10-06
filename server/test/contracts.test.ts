@@ -8,7 +8,7 @@ import {
   PrHistory,
   SmartDiff,
   Conformance,
-  Onboarding,
+  OnboardingTour,
   EvalRun,
   MemoryItem,
   RunTrace,
@@ -17,6 +17,10 @@ import {
   Settings,
   Repo,
   PrDetail,
+  SpecDetail,
+  ContextDocList,
+  ContextAttachmentList,
+  ContextAttachmentPut,
 } from '@devdigest/shared';
 
 /**
@@ -163,7 +167,7 @@ describe('AI contracts parse fixtures', () => {
     ).toThrow();
   });
 
-  it('Conformance / Onboarding / EvalRun / MemoryItem', () => {
+  it('Conformance / OnboardingTour / EvalRun / MemoryItem', () => {
     expect(() =>
       Conformance.parse({
         spec_id: 's1',
@@ -173,8 +177,13 @@ describe('AI contracts parse fixtures', () => {
       }),
     ).not.toThrow();
     expect(() =>
-      Onboarding.parse({
-        sections: [{ kind: 'architecture', title: 'T', body: 'b', links: [] }],
+      OnboardingTour.parse({
+        version: 2,
+        architecture: { summary_md: 'm', diagram: null },
+        critical_paths: [{ path: 'src/a.ts', reason: 'r' }],
+        run_steps: [{ command: 'pnpm install', note: 'n' }],
+        reading_path: [{ path: 'src/a.ts', why: 'w', score: 0.5 }],
+        first_tasks: [{ title: 't', why: 'w', files: ['src/a.ts'] }],
       }),
     ).not.toThrow();
     expect(() =>
@@ -237,6 +246,41 @@ describe('AI contracts parse fixtures', () => {
       stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed' },
     });
     expect(legacy.stats.cost_usd ?? null).toBeNull();
+  });
+
+  it('AC-27: RunTrace specs_detail is nullish; old traces without it still parse', () => {
+    const base = {
+      config: { agent: 'A', model: 'm', source: 'local' },
+      stats: { duration_ms: 1, tokens_in: 1, tokens_out: 1, findings: 0, grounding: '' },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '{}',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    };
+    const old = RunTrace.parse(base);
+    expect(old.specs_detail ?? null).toBeNull();
+    expect(RunTrace.parse({ ...base, specs_detail: null }).specs_detail).toBeNull();
+    const detail = { path: 'specs/a.md', tokens: 12, source: 'skill', source_name: 'S', status: 'over_budget' };
+    expect(RunTrace.parse({ ...base, specs_detail: [detail] }).specs_detail).toEqual([detail]);
+    expect(() => SpecDetail.parse({ ...detail, status: 'bogus' })).toThrow();
+  });
+
+  it('project-context list / attachment / PUT contracts parse', () => {
+    const limits = { per_doc_tokens: 4000, total_tokens: 10000 };
+    const list = ContextDocList.parse({
+      docs: [{ path: 'docs/a.md', root_type: 'docs', size_bytes: 10, tokens: 3, used_by: 0 }],
+      total_files: 1, total_tokens: 3, truncated: false, reason: null, limits,
+    });
+    expect(list.docs).toHaveLength(1);
+    expect(ContextDocList.parse({ ...list, docs: [], reason: 'not_cloned' }).reason).toBe('not_cloned');
+    expect(
+      ContextAttachmentList.parse({
+        repo_id: 'r', limits, attachments: [{ path: 'docs/a.md', position: 0, status: 'missing', tokens: 0 }],
+      }).attachments[0]?.status,
+    ).toBe('missing');
+    expect(ContextAttachmentPut.parse({ repo_id: 'r', paths: [] }).paths).toEqual([]);
   });
 
   it('RunSummary carries a nullable cost; PrMeta a nullish one', () => {

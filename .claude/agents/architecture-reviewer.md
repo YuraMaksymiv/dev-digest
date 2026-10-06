@@ -23,6 +23,12 @@ grant them.
   review checklist. There is no automated tool for the frontend; this check
   is manual only.
 
+## Start from the diff digest
+
+If the caller passes `implementer`'s **Diff digest**, read it first and
+open only the files it lists (plus their direct imports when a rule needs
+them) — don't re-read the whole touched-file set from scratch.
+
 ## Running the mechanical check
 
 Run `pnpm --dir server arch` (fails only on violations *new* since the

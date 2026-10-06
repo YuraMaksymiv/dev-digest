@@ -6,6 +6,7 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
+import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
@@ -141,7 +142,13 @@ d('skills reach the assembled prompt', () => {
     });
     const runId = res.json().runs[0].run_id as string;
     await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
-    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    // completeAgentRun lands before saveRunTrace — poll for the trace row.
+    let trace: any;
+    for (let i = 0; i < 200 && !trace; i++) {
+      const rows = await pg.handle.db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
+      if (rows.length > 0) trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+      else await new Promise((r) => setTimeout(r, 25));
+    }
     return trace.prompt_assembly as { skills: string | null; user: string };
   }
 

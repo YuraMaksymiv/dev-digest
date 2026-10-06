@@ -9,7 +9,7 @@
   "noHistory": "No prior PRs overlap these files.",
   "overlap": "{count} overlap",
   "unavailable": "Brief not available yet.",
-  "unavailableHint": "Run a review or open the PR to compute it.",
+  "unavailableHint": "Generate the brief to see why this PR exists and where it is risky.",
   "why": {
     "title": "git-why",
     "blame": "blame",
@@ -38,6 +38,41 @@
       "build": "Build",
       "ci": "CI",
       "security": "Security"
+    }
+  },
+  "prBrief": {
+    "title": "PR brief",
+    "summaryLabel": "Why this PR",
+    "risksLabel": "Risk areas",
+    "focusLabel": "Review focus",
+    "noRisks": "No notable risks flagged.",
+    "noFocus": "No specific review focus suggested.",
+    "emptyTitle": "No brief yet",
+    "emptyBody": "Generate a short summary of why this PR exists, where it is risky and what to review first.",
+    "generate": "Generate brief",
+    "generating": "Generating…",
+    "refresh": "Refresh brief",
+    "refreshing": "Refreshing…",
+    "stale": "This brief was generated for an earlier commit. Refresh to include the latest changes.",
+    "error": "Couldn't generate the brief. Please try again.",
+    "loadError": "Couldn't load the brief.",
+    "retry": "Retry",
+    "cost": "Cost {cost}",
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "focusOpenAria": "Open {file} in the diff",
+    "focusOpenAriaLine": "Open {file} at line {line} in the diff",
+    "missingLabel": "Based on partial context",
+    "missing": {
+      "intent": "No derived intent",
+      "blast": "No blast radius data",
+      "degraded_blast": "Partial blast radius",
+      "linked_issue": "Linked issue unavailable",
+      "specs": "No project docs",
+      "description": "No PR description"
     }
   }
 }

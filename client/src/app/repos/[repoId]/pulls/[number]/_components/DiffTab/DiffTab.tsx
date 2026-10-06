@@ -3,7 +3,12 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { SectionLabel, Button } from "@devdigest/ui";
-import { DiffViewer, type DiffCommentApi, type SmartDiffViewerData } from "@/components/diff-viewer";
+import {
+  DiffViewer,
+  type DiffCommentApi,
+  type FocusTarget,
+  type SmartDiffViewerData,
+} from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment, useFindingAction, useSmartDiff } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
 import type { FindingRecord, PrFile } from "@devdigest/shared";
@@ -17,6 +22,8 @@ interface DiffTabProps {
   findings: FindingRecord[];
   repoFullName?: string | null;
   headSha?: string | null;
+  /** File (and optional line) to scroll to, expand and highlight (deep link from the PR brief). */
+  focusTarget?: FocusTarget | null;
 }
 
 export function DiffTab({
@@ -27,6 +34,7 @@ export function DiffTab({
   findings,
   repoFullName,
   headSha,
+  focusTarget,
 }: DiffTabProps) {
   const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
@@ -116,7 +124,12 @@ export function DiffTab({
       >
         Files changed · {filesCount} files
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} smartDiff={smartDiffData} />
+      <DiffViewer
+        files={files}
+        commenting={commenting}
+        smartDiff={smartDiffData}
+        focusTarget={focusTarget}
+      />
     </section>
   );
 }

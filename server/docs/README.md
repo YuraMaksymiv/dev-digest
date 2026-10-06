@@ -6,3 +6,4 @@ Deeper reference docs for `server/` that don't fit the top-level
 | Doc | What it covers |
 |---|---|
 | [api-surface.md](api-surface.md) | every HTTP route, grouped by owning module, plus the local-first read rule |
+| [project-context.md](project-context.md) | project-context module: routes, path guard, resolve order/caps, run-time flow, trace fields |

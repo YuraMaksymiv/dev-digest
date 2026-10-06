@@ -27,6 +27,11 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
+import type { ProjectContextResolver } from '../modules/project-context/types.js';
+import { ProjectContextService } from '../modules/project-context/service.js';
+import { ProjectContextRepository } from '../modules/project-context/repository.js';
+import { OnboardingService } from '../modules/onboarding/service.js';
+import { OnboardingRepository } from '../modules/onboarding/repository.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
@@ -49,6 +54,8 @@ export interface ContainerOverrides {
   llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
+  /** Project-context resolver — tests inject a stub. */
+  projectContext?: ProjectContextResolver;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
@@ -76,6 +83,8 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
   private _repoIntel?: RepoIntel;
+  private _projectContext?: ProjectContextService;
+  private _onboarding?: OnboardingService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
@@ -123,6 +132,47 @@ export class Container {
     if (this.overrides.repoIntel) return this.overrides.repoIntel;
     this._repoIntel ??= new RepoIntelService(this);
     return this._repoIntel;
+  }
+
+  /**
+   * Single ProjectContextService instance (routes use it directly). Built from
+   * db/git/tokenizer only — not from the whole Container.
+   */
+  get projectContextService(): ProjectContextService {
+    this._projectContext ??= new ProjectContextService({
+      repo: new ProjectContextRepository(this.db),
+      git: this.git,
+      tokenizer: this.tokenizer,
+      log: {
+        info: (obj, msg) => console.info(msg, obj),
+        warn: (obj, msg) => console.warn(msg, obj),
+      },
+    });
+    return this._projectContext;
+  }
+
+  /**
+   * Single OnboardingService instance: the in-process single-flight map must
+   * outlive a request. One `onboarding.generate` JSON log line per generation.
+   */
+  get onboardingService(): OnboardingService {
+    this._onboarding ??= new OnboardingService({
+      repo: new OnboardingRepository(this.db),
+      repoIntel: this.repoIntel,
+      git: this.git,
+      tokenizer: this.tokenizer,
+      llm: (provider) => this.llm(provider),
+      log: {
+        info: (obj, msg) => console.info(msg, JSON.stringify(obj)),
+        warn: (obj, msg) => console.warn(msg, JSON.stringify(obj)),
+      },
+    });
+    return this._onboarding;
+  }
+
+  /** Narrow resolver port for reviews; same instance as `projectContextService`. */
+  get projectContext(): ProjectContextResolver {
+    return this.overrides.projectContext ?? this.projectContextService;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */

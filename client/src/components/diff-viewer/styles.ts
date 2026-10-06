@@ -11,6 +11,10 @@ export const s = {
     overflow: "hidden",
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
+  fileCardFocused: {
+    borderColor: "var(--accent)",
+    boxShadow: "0 0 0 1px var(--accent)",
+  } satisfies CSSProperties,
   fileHeader: {
     display: "flex",
     alignItems: "center",
@@ -101,8 +105,13 @@ export function chevronFor(open: boolean): CSSProperties {
 }
 
 /** Row background per line kind (add/del tinted, others transparent), plus an
- *  optional severity-colored left stripe when the line anchors a finding. */
-export function lineRowFor(kind: Line["kind"], severityColor?: string): CSSProperties {
+ *  optional severity-colored left stripe when the line anchors a finding. A
+ *  deep-link `target` row gets an accent outline, independent of the stripe. */
+export function lineRowFor(
+  kind: Line["kind"],
+  severityColor?: string,
+  target?: boolean,
+): CSSProperties {
   const background = kind === "add" ? "var(--code-add)" : kind === "del" ? "var(--code-del)" : "transparent";
   return {
     display: "flex",
@@ -111,6 +120,7 @@ export function lineRowFor(kind: Line["kind"], severityColor?: string): CSSPrope
     lineHeight: "20px",
     background,
     borderLeft: `3px solid ${severityColor ?? "transparent"}`,
+    ...(target ? { outline: "2px solid var(--accent)", outlineOffset: -2 } : null),
   };
 }
 
