@@ -164,11 +164,47 @@ export const SmartDiff = z.object({
 });
 export type SmartDiff = z.infer<typeof SmartDiff>;
 
-// ---- Composed PR Brief (pr_brief.json) ----
-export const PrBrief = z.object({
-  intent: Intent,
-  blast: BlastRadius,
-  risks: Risks,
-  history: PrHistory,
+// ---- PR Brief (pr_brief.json) ----
+export const PR_BRIEF_MAX_SUMMARY = 600;
+export const PR_BRIEF_MAX_RISKS = 6;
+export const PR_BRIEF_MAX_FOCUS = 8;
+
+export const ReviewFocusItem = z.object({
+  file: z.string(),
+  line: z.number().int().nullable(),
+  reason: z.string(),
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
+export const MissingInput = z.enum([
+  'intent',
+  'blast',
+  'linked_issue',
+  'specs',
+  'description',
+  'degraded_blast',
+]);
+export type MissingInput = z.infer<typeof MissingInput>;
+
+/** Model-facing part only; the server adds the rest of PrBrief. */
+export const PrBriefModelOutput = z.object({
+  summary: z.string().max(PR_BRIEF_MAX_SUMMARY),
+  risks: z.array(Risk).max(PR_BRIEF_MAX_RISKS),
+  review_focus: z.array(ReviewFocusItem).max(PR_BRIEF_MAX_FOCUS),
+});
+export type PrBriefModelOutput = z.infer<typeof PrBriefModelOutput>;
+
+export const PrBrief = PrBriefModelOutput.extend({
+  head_sha: z.string(),
+  generated_at: z.string(),
+  model: z.string(),
+  tokens_in: z.number().int(),
+  tokens_out: z.number().int(),
+  cost_usd: z.number().nullable(),
+  missing_inputs: z.array(MissingInput),
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+/** Wire shape of GET/POST /pulls/:id/brief (GET may also return null). */
+export const PrBriefResponse = PrBrief.extend({ stale: z.boolean() });
+export type PrBriefResponse = z.infer<typeof PrBriefResponse>;

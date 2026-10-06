@@ -17,6 +17,8 @@ interface DiffTabProps {
   findings: FindingRecord[];
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Path to scroll to, expand and highlight (deep link from the PR brief). */
+  focusFile?: string | null;
 }
 
 export function DiffTab({
@@ -27,6 +29,7 @@ export function DiffTab({
   findings,
   repoFullName,
   headSha,
+  focusFile,
 }: DiffTabProps) {
   const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
@@ -116,7 +119,7 @@ export function DiffTab({
       >
         Files changed · {filesCount} files
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} smartDiff={smartDiffData} />
+      <DiffViewer files={files} commenting={commenting} smartDiff={smartDiffData} focusFile={focusFile} />
     </section>
   );
 }

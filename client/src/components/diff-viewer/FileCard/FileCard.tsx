@@ -72,6 +72,7 @@ export function FileCard({
   findingActionPending,
   repoFullName,
   headSha,
+  focused,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -82,11 +83,19 @@ export function FileCard({
   findingActionPending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Deep-link target: opens the card, scrolls it into view and highlights it. */
+  focused?: boolean;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!focused) return;
+    setOpen(true);
+    cardRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [focused]);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
   const { byLine: findingsByLine, unmatched: unmatchedFindings } = React.useMemo(
@@ -110,7 +119,7 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div ref={cardRef} style={focused ? { ...s.fileCard, ...s.fileCardFocused } : s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />

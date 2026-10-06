@@ -25,6 +25,14 @@ export interface ProjectContextResolver {
   resolve(input: ResolveInput): Promise<ResolvedProjectContext>;
 }
 
+export interface RepoSpecsResolver {
+  /**
+   * Deduped union of docs attached to the repo's enabled agents, capped by the
+   * existing per-doc / total limits. Fail-soft: never throws.
+   */
+  resolveForRepo(repoId: string): Promise<ResolvedProjectContext>;
+}
+
 /** Minimal token counter (structurally satisfied by the tokenizer adapter). */
 export interface TokenCounter {
   count(text: string): number;

@@ -11,6 +11,10 @@ export const s = {
     overflow: "hidden",
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
+  fileCardFocused: {
+    borderColor: "var(--accent)",
+    boxShadow: "0 0 0 1px var(--accent)",
+  } satisfies CSSProperties,
   fileHeader: {
     display: "flex",
     alignItems: "center",

@@ -17,6 +17,7 @@ function makeService(over: Partial<Record<keyof ProjectContextRepository, unknow
     usedByCounts: async () => new Map([['specs/a.md', 2]]),
     getAttachments: async () => [],
     getSkillAttachments: async () => new Map(),
+    getEnabledAgentAttachments: async () => [],
     ownerExists: async () => true,
     replaceAttachments: async () => {},
     ...over,
@@ -168,6 +169,32 @@ describe('resolve', () => {
     const r = await svc.resolve({ agentId: 'a', skills: [], repoId: 'r' });
     expect(r).toEqual({ texts: [], specs_detail: [], specs_read: [] });
     expect(warns).toHaveLength(1);
+  });
+});
+
+describe('resolveForRepo', () => {
+  it('AC-20: returns the deduped union of enabled-agent docs, flagging missing ones', async () => {
+    const svc = makeService({
+      getEnabledAgentAttachments: async () => [
+        { path: 'specs/a.md', position: 0 },
+        { path: 'specs/gone.md', position: 1 },
+        { path: 'specs/a.md', position: 0 },
+      ],
+    });
+    const r = await svc.resolveForRepo('r');
+    expect(r.specs_read).toEqual(['specs/a.md']);
+    expect(r.texts).toEqual([{ source: 'specs/a.md', text: 'hello world' }]);
+    expect(r.specs_detail.map((d) => [d.path, d.status])).toEqual([
+      ['specs/a.md', 'read'],
+      ['specs/gone.md', 'missing'],
+    ]);
+  });
+
+  it('AC-20: returns an empty result, not an error, on any internal failure or unknown repo', async () => {
+    const failing = makeService({ getEnabledAgentAttachments: async () => { throw new Error('db down'); } });
+    expect(await failing.resolveForRepo('r')).toEqual({ texts: [], specs_detail: [], specs_read: [] });
+    const noRepo = makeService({ getRepoRef: async () => null });
+    expect(await noRepo.resolveForRepo('r')).toEqual({ texts: [], specs_detail: [], specs_read: [] });
   });
 });
 

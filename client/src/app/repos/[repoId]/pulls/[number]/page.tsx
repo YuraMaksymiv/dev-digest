@@ -59,6 +59,7 @@ export default function PRDetailPage() {
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
+  const focusFile = search.get("file");
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
@@ -178,6 +179,7 @@ export default function PRDetailPage() {
             findings={allFindings}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            focusFile={focusFile}
           />
         )}
       </div>

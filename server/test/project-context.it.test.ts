@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
@@ -64,6 +65,21 @@ d('project-context repository', () => {
     expect(await repo.getRepoInWorkspace('00000000-0000-0000-0000-000000000000', repoId)).toBeNull();
     expect(await repo.ownerExists(workspaceId, 'agent', agentA)).toBe(true);
     expect(await repo.ownerExists('00000000-0000-0000-0000-000000000000', 'skill', skillId)).toBe(false);
+  });
+
+  it('AC-20: lists docs attached to enabled agents only, deduped by the caller, ordered', async () => {
+    await repo.replaceAttachments('agent', agentA, repoId, ['specs/one.md', 'specs/shared.md']);
+    await repo.replaceAttachments('agent', agentB, repoId, ['specs/shared.md']);
+    await pg.handle.db.update(t.agents).set({ enabled: true }).where(inArray(t.agents.id, [agentA, agentB]));
+    const both = (await repo.getEnabledAgentAttachments(repoId)).map((r) => r.path);
+    expect(both).toEqual(expect.arrayContaining(['specs/one.md', 'specs/shared.md']));
+    await pg.handle.db.update(t.agents).set({ enabled: false }).where(eq(t.agents.id, agentA));
+    const afterDisable = (await repo.getEnabledAgentAttachments(repoId)).map((r) => r.path);
+    expect(afterDisable).not.toContain('specs/one.md');
+    expect(afterDisable).toContain('specs/shared.md');
+    await pg.handle.db.update(t.agents).set({ enabled: true }).where(eq(t.agents.id, agentA));
+    await repo.replaceAttachments('agent', agentA, repoId, []);
+    await repo.replaceAttachments('agent', agentB, repoId, []);
   });
 
   it('groups skill attachments by skill id', async () => {

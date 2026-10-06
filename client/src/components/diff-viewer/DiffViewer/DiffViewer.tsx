@@ -37,13 +37,26 @@ export function DiffViewer({
   files,
   commenting,
   smartDiff,
+  focusFile,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   smartDiff?: SmartDiffViewerData;
+  /** Optional: expand, scroll to and highlight the file with this path. */
+  focusFile?: string | null;
 }) {
   const t = useTranslations("shell");
   const [collapsed, setCollapsed] = React.useState(DEFAULT_COLLAPSED);
+
+  const grouped = smartDiff?.groups;
+  const order = smartDiff?.order ?? "original";
+  React.useEffect(() => {
+    if (!focusFile || !files) return;
+    const ordered = orderFiles(files, grouped, order);
+    if (ordered.kind !== "grouped") return;
+    const role = ordered.groups.find((g) => g.files.some((f) => f.path === focusFile))?.role;
+    if (role) setCollapsed((c) => (c[role] ? { ...c, [role]: false } : c));
+  }, [focusFile, files, grouped, order]);
 
   if (!files || files.length === 0) {
     return <div style={s.empty}>{t("diffViewer.noChangedFiles")}</div>;
@@ -65,6 +78,7 @@ export function DiffViewer({
         findingActionPending={smartDiff?.findingActionPending}
         repoFullName={smartDiff?.repoFullName}
         headSha={smartDiff?.headSha}
+        focused={!!focusFile && file.path === focusFile}
       />
     );
   };

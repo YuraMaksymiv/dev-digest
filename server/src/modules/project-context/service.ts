@@ -33,6 +33,7 @@ import type { ProjectContextRepository, OwnerKind, RepoRefRow } from './reposito
 import type {
   ContextLogger,
   ProjectContextResolver,
+  RepoSpecsResolver,
   ResolveInput,
   ResolvedProjectContext,
   TokenCounter,
@@ -70,7 +71,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out;
 }
 
-export class ProjectContextService implements ProjectContextResolver {
+export class ProjectContextService implements ProjectContextResolver, RepoSpecsResolver {
   private repo: ProjectContextRepository;
   private git: Pick<GitClient, 'clonePathFor'>;
   private tokenizer: TokenCounter;
@@ -256,6 +257,24 @@ export class ProjectContextService implements ProjectContextResolver {
     return this.getAttachments(workspaceId, kind, ownerId, body.repo_id);
   }
 
+  async resolveForRepo(repoId: string): Promise<ResolvedProjectContext> {
+    const empty: ResolvedProjectContext = { texts: [], specs_detail: [], specs_read: [] };
+    try {
+      const repo = await this.repo.getRepoRef(repoId);
+      if (!repo) return empty;
+      const rows = await this.repo.getEnabledAgentAttachments(repoId);
+      const unique = dedupCandidates(
+        rows.map((r) => ({ path: r.path, source: 'agent' as const, source_name: null })),
+      );
+      if (unique.length === 0) return empty;
+      const candidates = await this.readCandidates(this.rootFor(repo), repoId, unique);
+      return applyBudget(candidates, MAX_TOTAL_TOKENS);
+    } catch (err) {
+      this.log.warn({ err: (err as Error).message, repoId }, 'project-context repo specs failed (non-fatal)');
+      return empty;
+    }
+  }
+
   async resolve(input: ResolveInput): Promise<ResolvedProjectContext> {
     const empty: ResolvedProjectContext = { texts: [], specs_detail: [], specs_read: [] };
     try {
@@ -276,25 +295,7 @@ export class ProjectContextService implements ProjectContextResolver {
       const unique = dedupCandidates(refs);
       if (unique.length === 0) return empty;
 
-      const root = this.rootFor(repo);
-      const candidates = await mapLimit(unique, READ_CONCURRENCY, async (ref): Promise<Candidate> => {
-        const outcome = await this.readDoc(root, ref.path);
-        if (outcome.kind !== 'ok') {
-          const status = outcome.kind === 'missing' ? 'missing' : 'unreadable';
-          this.log.info(
-            { repoId: input.repoId, path: ref.path, status, source: ref.source },
-            'project-context doc skipped',
-          );
-          return { ...ref, status, text: '', tokens: 0 };
-        }
-        const cut = truncateHead(outcome.text, MAX_TOKENS_PER_DOC, this.count, outcome.fileTruncated);
-        return {
-          ...ref,
-          status: cut.truncated || outcome.fileTruncated ? 'truncated' : 'read',
-          text: cut.text,
-          tokens: cut.tokens,
-        };
-      });
+      const candidates = await this.readCandidates(this.rootFor(repo), input.repoId, unique);
       const result = applyBudget(candidates, MAX_TOTAL_TOKENS);
       this.log.info(
         {
@@ -310,5 +311,27 @@ export class ProjectContextService implements ProjectContextResolver {
       this.log.warn({ err: (err as Error).message, repoId: input.repoId }, 'project-context resolve failed (non-fatal)');
       return empty;
     }
+  }
+
+  private readCandidates(
+    root: string,
+    repoId: string,
+    unique: { path: string; source: 'agent' | 'skill'; source_name: string | null }[],
+  ): Promise<Candidate[]> {
+    return mapLimit(unique, READ_CONCURRENCY, async (ref): Promise<Candidate> => {
+      const outcome = await this.readDoc(root, ref.path);
+      if (outcome.kind !== 'ok') {
+        const status = outcome.kind === 'missing' ? 'missing' : 'unreadable';
+        this.log.info({ repoId, path: ref.path, status, source: ref.source }, 'project-context doc skipped');
+        return { ...ref, status, text: '', tokens: 0 };
+      }
+      const cut = truncateHead(outcome.text, MAX_TOKENS_PER_DOC, this.count, outcome.fileTruncated);
+      return {
+        ...ref,
+        status: cut.truncated || outcome.fileTruncated ? 'truncated' : 'read',
+        text: cut.text,
+        tokens: cut.tokens,
+      };
+    });
   }
 }

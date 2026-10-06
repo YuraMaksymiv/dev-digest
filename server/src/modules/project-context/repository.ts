@@ -72,6 +72,26 @@ export class ProjectContextRepository {
       .orderBy(asc(t.skillContextDocs.position));
   }
 
+  /**
+   * Doc paths attached to ENABLED agents of the repo's workspace, for one repo.
+   * Ordered by agent name then position so the deduped union is deterministic.
+   */
+  async getEnabledAgentAttachments(repoId: string): Promise<AttachmentRow[]> {
+    return this.db
+      .select({ path: t.agentContextDocs.path, position: t.agentContextDocs.position })
+      .from(t.agentContextDocs)
+      .innerJoin(t.agents, eq(t.agents.id, t.agentContextDocs.agentId))
+      .innerJoin(t.repos, eq(t.repos.id, t.agentContextDocs.repoId))
+      .where(
+        and(
+          eq(t.agentContextDocs.repoId, repoId),
+          eq(t.agents.enabled, true),
+          eq(t.agents.workspaceId, t.repos.workspaceId),
+        ),
+      )
+      .orderBy(asc(t.agents.name), asc(t.agentContextDocs.position), asc(t.agentContextDocs.path));
+  }
+
   /** Attachments of several skills for one repo, grouped by skill id. */
   async getSkillAttachments(
     skillIds: string[],
