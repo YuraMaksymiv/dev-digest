@@ -1,6 +1,6 @@
 # Spec — PR Why + Risk Brief
 
-Status: **approved** (2026-10-04) · Scope: `server/` + `client/` (contracts in both `@devdigest/shared` copies) · Location: `specs/pr-brief.md`
+Status: **approved** (2026-10-06; was approved 2026-10-04, amended for line-level deep link, re-approved 2026-10-06) · Scope: `server/` + `client/` (contracts in both `@devdigest/shared` copies) · Location: `specs/pr-brief.md`
 
 ## 1. Summary
 
@@ -10,7 +10,7 @@ A reviewer opening a PR cold gets one **PR Brief** card on the PR Overview tab. 
 |---|---|---|
 | PR Brief card | `/repos/[repoId]/pulls/[number]` Overview tab | Generate button, summary, Risk areas, Review focus, missing-input chips, cost chip, stale notice, Refresh |
 | Intent + Blast radius | same card, beside the model parts | existing `IntentCard` and `BlastRadius`, fetched live |
-| Files changed tab | `?tab=diff&file=<path>` | target file's group expanded, card opened, scrolled to, highlighted |
+| Files changed tab | `?tab=diff&file=<path>[&line=<n>]` | target file's group expanded, card opened; with a valid line, that row is centred and highlighted, else the card is scrolled to and highlighted |
 | API | `GET` / `POST /pulls/:id/brief` | read cache / generate |
 
 ## 2. Current state
@@ -25,17 +25,18 @@ A reviewer opening a PR cold gets one **PR Brief** card on the PR Overview tab. 
 - `risk_brief` feature model exists (`platform.ts:18`), default `openai` / `gpt-4.1` (`platform.ts:60-64`); `resolveFeatureModel` at `settings/feature-models.ts:51`. Importing it into `platform/container.ts` is a circular dependency; use the route-thunk pattern (server INSIGHTS 2026-10-04; `modules/onboarding/routes.ts:27`).
 - `completeStructured` usage: `reviews/intent-loader.ts:71-91`; returns `tokensIn/tokensOut/costUsd`. Linked-issue helpers `resolveLinkedIssueSignal` / `resolveLinkedContentSignal` are exported (`intent-loader.ts:140,164`).
 - Client: `OverviewTab.tsx` renders `IntentCard` + `BlastRadius` in `s.briefGrid`; tab state is `?tab` (`page.tsx:60-68`, `router.replace`). `DiffTab` takes no file target; `FileCard` open state is internal (`FileCard.tsx:87`); `DiffViewer` collapses `docs` and `boilerplate` groups by default (`DiffViewer.tsx:34`).
+- Diff rendering: `parsePatch` (`diff-viewer/helpers.ts:14-40`) gives `add`/`ctx` rows a `newNo`, `del` rows none; only patch lines are rendered (no expand-context control), so gaps between hunks are not in the DOM. `CodeLine` rows have no id, ref or highlight (`CodeLine.tsx:68-100`; `lineRowFor` at `styles.ts:109`). A card starts closed above `AUTO_EXPAND_MAX_LINES = 200` (`constants.ts:4`, `FileCard.tsx:90-92`). The focus effect runs on `[focused]` only, calls `setOpen(true)` and scrolls the card in the same tick (`FileCard.tsx:94-98`), so the body is not yet mounted. The target is read at `page.tsx:62` → `DiffTab.tsx:21` → `DiffViewer.tsx:53-59,81`. The click URL is built at `PrBrief/helpers.ts:3` and pinned by `PrBrief.test.tsx:124-126`. No `line` param exists.
 - `client/messages/en/brief.json` has `block.*`, `noRisks`, `unavailable`, `unavailableHint`, `intentCard.*`; no keys for summary, review focus, generate, refresh, stale, missing inputs. `unavailableHint` ("Run a review or open the PR to compute it") is wrong for the new flow.
 
 ## 3. Goals / Non-goals
 
-**Goals**: one-click brief on Overview; one model call; no invented paths or lines; cache survives reload; honest about missing inputs and stale state; click-through to the file in Files changed.
+**Goals**: one-click brief on Overview; one model call; no invented paths or lines; cache survives reload; honest about missing inputs and stale state; click-through to the file, and to the exact line when known, in Files changed.
 
 **Non-goals** (P3, not in this spec): verdict banner and PR score from the latest review, expandable risk explanations, "Prior PRs touching these files" (`history`). No automatic intent derivation or blast indexing at generate time. No automatic regeneration. No reading of diff hunk bodies by the model. No new migration.
 
 ## 4. Users & UX flow
 
-Actor: a reviewer opening a PR. Flow: Overview → no brief → **Generate brief** → skeleton → card renders → click a Review focus item → `router.push` to `?tab=diff&file=<path>` → Files changed shows the file expanded and highlighted. Reload shows the cached brief. **Refresh** regenerates.
+Actor: a reviewer opening a PR. Flow: Overview → no brief → **Generate brief** → skeleton → card renders → click a Review focus item → `router.push` to `?tab=diff&file=<path>` (plus `&line=<n>` when the item has a line) → Files changed shows the file expanded; the target row is centred and highlighted, or the file card when there is no row. Reload shows the cached brief. **Refresh** regenerates.
 
 | State | Trigger | What the user sees |
 |---|---|---|
@@ -47,14 +48,18 @@ Actor: a reviewer opening a PR. Flow: Overview → no brief → **Generate brief
 | No focus | `review_focus: []` | short empty line in the Review focus section |
 | Error | POST fails | inline error with retry; any previous brief stays visible |
 | Not clickable | risk file only in blast, not in diff | file shown as plain text |
+| Line target | `?file=` + valid `?line=` with a rendered row | group and card open (any size), row centred and highlighted, `aria-current` set |
+| Line fallback | `?line=` with no rendered `add`/`ctx` row (gap, stale, null patch) | card scrolled to and highlighted as for a file; no message |
 
 Design sources: the request text and two described screenshots (Overview card; Files changed after click). They show no empty, loading, error, stale or missing-input states; those are defined above.
 
 ## 5. Design analysis
 
 - **Gaps**: loading/error/stale/missing copy; behaviour when blast is `degraded`; keyboard/a11y for focus items; deep-link mechanics.
-- **Uncovered edge cases**: see §9 (AC-9 to AC-19).
-- **Module interaction**: §8.
+- **Uncovered edge cases**: see §10.
+- **Module interaction**: §9.
+- **Line-link gaps found (2026-10-06)**: `CodeLine` has no row identity or highlight; `FileCard` focus is a card-level boolean with no place for a line; open and scroll race in one tick. Context between hunks is not rendered and cannot be expanded, so a "collapsed region" is only a closed group or card, which the click force-opens.
+- **Line-link UX**: `file:line` shown on the focus item — accepted (AC-36). Persistent highlight until the URL changes — accepted. Row centred — accepted. Non-colour cue via `aria-current` and `behavior:'auto'` under `prefers-reduced-motion` — accepted. Message on fallback — rejected by user (silent).
 - **UX improvements**: skeleton while generating — accepted. Missing-input chips — accepted. Stale brief shown with notice, not hidden — accepted. `?file=` in the URL via `router.push`, so Back returns to Overview — accepted. Severity colour plus text label — accepted. Cost chip — accepted. Verdict banner / score — rejected for this spec (P3).
 
 ## 6. Decisions
@@ -71,6 +76,10 @@ Design sources: the request text and two described screenshots (Overview card; F
 | D8 | Write an `agent_runs` row (`agentId: null`) for cost, as `intent-loader.ts:63` does | cost accounting parity | default |
 | D9 | `POST` rate limit 10/min plus single-flight per PR; `maxRetries: 0`; `GET` with no brief is 200 `null` | cost and double-click safety | default |
 | D10 | Model chosen via `resolveFeatureModel(…, 'risk_brief')` in the route, passed to the service as a thunk | avoids circular import | server INSIGHTS 2026-10-04 |
+| D11 | Line target is a separate `&line=<n>` search param, new side only; no contract or server change (`review_focus[].line` already exists, and AC-11 guarantees it lies in a hunk range) | `useSearchParams` does not see a hash; a `del` row has no new-side number | user Q4 default A; mentor feedback |
+| D12 | A missing row falls back silently to file-level behaviour; the click force-opens collapsed groups and cards | stale briefs are rare and already flagged by AC-24 | user Q1=A |
+| D13 | Highlight persists until the URL changes; row is scrolled to the centre | simple and testable | user Q2, Q3 defaults A |
+| D14 | `file:line` is shown on focus items with a non-null line | tells the reviewer where the click lands | user Q5=B |
 
 ## 7. Data model & contracts
 
@@ -79,24 +88,27 @@ Design sources: the request text and two described screenshots (Overview card; F
   `{ summary: string (max 600 chars), risks: Risk[] (max 6), review_focus: ReviewFocusItem[] (max 8), head_sha: string, generated_at: string, model: string, tokens_in: int, tokens_out: int, cost_usd: number | null, missing_inputs: MissingInput[] }`.
   `ReviewFocusItem = { file: string, line: int | null, reason: string }` (line nullable, not omitted). `MissingInput` = `'intent' | 'blast' | 'linked_issue' | 'specs' | 'description'`, plus a `degraded_blast` marker when blast is `degraded` (blast reason is read live). `Risk` and `Risks` are unchanged; `history` is removed from `PrBrief` (`PrHistory` types stay). The model-facing schema is `{summary, risks, review_focus}` only; the server adds the rest.
 - **Wire**: `GET /pulls/:id/brief` → `(PrBrief & { stale: boolean }) | null`; `POST /pulls/:id/brief` → `PrBrief & { stale: false }`. Snake_case, as the contract.
-- **Input provenance** (all assembled by the server):
+- **Line deep link**: no contract change. The client reads `?line=` as a positive integer; any other value is ignored.
 
-| Input | Source | Cap (tokens) |
-|---|---|---|
-| PR title, description | `pulls` row | 1,000 |
-| Intent | `getIntent(prId)` (DB, no derivation) | 500 |
-| Linked issue | `resolveLinkedIssueSignal` (GitHub; fail → missing) | 800 |
-| Blast summary + ≤20 callers | `BlastService.getBlast` | 1,000 |
-| Diff stats: `path · role · +a/−d · hunk ranges`, ≤150 files by churn | `getPrFiles`, `classifyFile`, `@@` headers | 1,700 |
-| Attached specs | new `project-context` method (D1); ≤1,500 per doc | 3,000 |
+## 8. Inputs & provenance
 
-  Total ≤ 8,000. Trim order when over: specs, then least-churn diff files, then description tail. Trimmed text is marked `[truncated]` and omitted files/docs are counted in the prompt.
+All model inputs are assembled by the server. Budget: 8,000 tokens for the user message via `container.tokenizer.count` (D7). Trim order when over: specs, then least-churn diff files, then description tail. Trimmed text is marked `[truncated]`; omitted files/docs are counted in the prompt.
 
-## 8. Module interaction
+| Input | Source | Trust | When absent or degraded | Cap (tokens) |
+|---|---|---|---|---|
+| PR title, description | `pulls` row | untrusted | empty description → `description` in `missing_inputs` | 1,000 |
+| Intent | `getIntent(prId)` (DB, no derivation) | untrusted | `intent` in `missing_inputs` | 500 |
+| Linked issue | `resolveLinkedIssueSignal` (GitHub) | untrusted | fail → `linked_issue` in `missing_inputs` | 800 |
+| Blast summary + ≤20 callers | `BlastService.getBlast` | trusted (computed) | `degraded`/fail → `blast` / `degraded_blast` | 1,000 |
+| Diff stats: `path · role · +a/−d · hunk ranges`, ≤150 files by churn | `getPrFiles`, `classifyFile`, `@@` headers | trusted paths and numbers; no hunk bodies | none → empty list | 1,700 |
+| Attached specs | new `project-context` method (D1); ≤1,500 per doc | untrusted | none or error → `specs` in `missing_inputs` | 3,000 |
+| `?file=`, `?line=` (client) | page URL (`page.tsx:62`) | untrusted | missing or invalid → ignored (AC-28, AC-34) | n/a |
+
+## 9. Module interaction
 
 - **server `modules/brief/`** (routes · service · helpers · constants · repository): assembles input, makes the one call, post-validates, caches, logs. The route resolves the model and passes a thunk. It calls `BlastService`, the reviews repository (`getIntent`, `getPrFiles`, `getPull`), `classifyFile`, the intent-loader linked-issue helper, and the new project-context method.
 - **server `modules/project-context/`**: new method returning capped, deduped docs from all enabled agents' attachments for a repo; fail-soft like `resolve`.
-- **client**: `GET`/`POST` hooks; PR Brief card in `OverviewTab`; `DiffTab` + `diff-viewer` read `?file=`.
+- **client**: `GET`/`POST` hooks; PR Brief card in `OverviewTab`; `page.tsx` → `DiffTab` → `DiffViewer` → `FileCard` → `CodeLine` carry `?file=` and `?line=`; the brief link builder appends `&line=`.
 - **reviewer-core**: not touched.
 - Failure propagation: provider or Zod failure → API error, cache untouched → card shows error and keeps any previous brief.
 
@@ -119,7 +131,29 @@ sequenceDiagram
   API-->>UI: brief
 ```
 
-## 9. Acceptance criteria (EARS)
+## 10. Edge cases
+
+| # | Case | Expected behaviour | AC-ID |
+|---|---|---|---|
+| E1 | PR id unknown | 404 | AC-3 |
+| E2 | Intent, blast, linked issue, specs or description missing/degraded | generate anyway, list in `missing_inputs` | AC-13–15 |
+| E3 | Model or Zod failure | error, cache untouched, previous brief kept | AC-16, AC-23 |
+| E4 | Double click / concurrent POST | single model call | AC-17 |
+| E5 | Invented path or line from the model | item dropped / line cleared | AC-9–11 |
+| E6 | Zero risks or zero focus items | brief still cached and shown | AC-12 |
+| E7 | Stale brief (head moved) | shown with notice; no auto-regeneration | AC-24 |
+| E8 | Over-budget input | trimmed in fixed order, `[truncated]` | AC-6, AC-7 |
+| E9 | Prompt injection in description, issue or specs | treated as data; output rendered as plain text | AC-19 |
+| E10 | `?file=` matches no PR file | normal Files changed; `line` ignored | AC-28, AC-34 |
+| E11 | `?line=` is 0, negative, fractional, non-numeric, or without `file` | ignored | AC-34 |
+| E12 | Line in a gap between hunks, null/empty patch, or stale brief with changed patch | card scrolled to and highlighted, no message | AC-33 |
+| E13 | Line in a closed docs/boilerplate group, or file over 200 changed lines | group and card force-opened, row found | AC-31 |
+| E14 | Row has a finding or comment | row highlight applies; cards below are unaffected | AC-32 |
+| E15 | Target changes while the tab is mounted; flat ("original") order | re-targets; works in both orders | AC-35 |
+| E16 | `prefers-reduced-motion` | scroll uses `behavior:'auto'` | AC-37 |
+| E17 | Rapid re-render after the scroll fired | no repeated scroll for the same target | AC-35 |
+
+## 11. Acceptance criteria (EARS)
 
 | ID | Pattern | Requirement | Cat |
 |---|---|---|---|
@@ -129,7 +163,7 @@ sequenceDiagram
 | AC-4 | Event | When `POST /pulls/:id/brief` is called, the API shall make exactly one `completeStructured` request with `maxRetries: 0` using the model from `resolveFeatureModel(…, 'risk_brief')`. | C4 |
 | AC-5 | Ubiquitous | The brief generator shall build the model input only from title, description, stored intent, linked issue, blast summary and callers, per-file stats with hunk ranges, and attached specs, and shall not include hunk bodies. | C1 |
 | AC-6 | Ubiquitous | The brief generator shall keep the user message at or below 8,000 tokens counted with `container.tokenizer.count`, trimming in the order specs, least-churn diff files, description tail. | C6 |
-| AC-7 | Ubiquitous | The brief generator shall cap each input at the §7 per-section token limit and mark cut text `[truncated]`. | C6 |
+| AC-7 | Ubiquitous | The brief generator shall cap each input at the §8 per-section token limit and mark cut text `[truncated]`. | C6 |
 | AC-8 | Event | When a brief is generated, the API shall store it in `pr_brief` with `head_sha`, `generated_at`, `model`, `tokens_in`, `tokens_out`, `cost_usd` and `missing_inputs`, and write an `agent_runs` row. | C3 |
 | AC-9 | Unwanted | If a risk cites no allowed file (PR files ∪ blast files after path normalisation), then the API shall drop that risk. | C5 |
 | AC-10 | Unwanted | If a review-focus item cites a file that is not a PR file, then the API shall drop that item. | C5 |
@@ -148,13 +182,20 @@ sequenceDiagram
 | AC-23 | Unwanted | If the `POST` fails, then the PR Brief card shall show an error with retry and keep any previous brief visible. | C2 |
 | AC-24 | State | While `stale` is true, the PR Brief card shall show a "PR changed since this was generated" notice and a Refresh button, and shall not regenerate automatically. | C2 |
 | AC-25 | Ubiquitous | The PR Brief card shall show summary, Risk areas (title, file, severity colour and text label), Review focus in server order, `missing_inputs` chips and a cost chip. | C2 |
-| AC-26 | Event | When a Review focus item is clicked, the PR page shall `router.push` `?tab=diff&file=<path>`. | C2 |
+| AC-26 | Event | When a Review focus item is clicked, the PR page shall `router.push` `?tab=diff&file=<path>`, and shall append `&line=<n>` when the item's `line` is not null. | C2 |
 | AC-27 | Event | When Files changed loads with `?file=<path>` matching a PR file, the diff viewer shall expand that file's group, open its card, scroll to it and highlight it. | C2 |
 | AC-28 | Unwanted | If `?file=` matches no PR file, then the diff viewer shall render Files changed normally. | C5 |
 | AC-29 | Unwanted | If a risk file is not a PR file, then the PR Brief card shall render it as non-clickable text. | C2 |
 | AC-30 | Ubiquitous | The PR Brief card shall take all text from `client/messages/en/brief.json`, and focus items shall be keyboard-focusable links or buttons. | C2 |
+| AC-31 | Event | When Files changed loads with `?file=<path>` matching a PR file and `?line=<n>` a positive integer, the diff viewer shall open that file's group and card, including a file over 200 changed lines, and scroll the row whose new-side number is `<n>` to the vertical centre of the viewport. | C2 |
+| AC-32 | Event | When the target row is rendered, the diff viewer shall highlight it until the URL changes, with a style distinct from the severity colour, and shall set `aria-current` on it. | C2 |
+| AC-33 | Unwanted | If no rendered `add` or `ctx` row has new-side number `<n>`, then the diff viewer shall scroll to and highlight the file card as in AC-27, without an error or message. | C5 |
+| AC-34 | Unwanted | If `?line=` is not a positive integer, or `?file=` is absent or matches no PR file, then the diff viewer shall ignore `line`. | C5 |
+| AC-35 | Event | When `?file=` or `?line=` changes while Files changed is mounted, the diff viewer shall scroll to the new target once, and shall not scroll again for an unchanged target. | C2 |
+| AC-36 | State | While a Review focus item has a non-null `line`, the PR Brief card shall show `<file>:<line>` for that item. | C2 |
+| AC-37 | State | While the user prefers reduced motion, the diff viewer shall scroll to the target with `behavior:'auto'`. | C2 |
 
-## 10. Non-functional requirements
+## 12. Non-functional requirements
 
 | ID | Requirement | Measure / threshold |
 |---|---|---|
@@ -164,7 +205,7 @@ sequenceDiagram
 | NFR-4 | Existing `PrBrief` consumers and stored rows shall not break. | none exist today; unparsable stored JSON is treated as no brief |
 | NFR-5 | Each generation shall log model, token counts, cost and number of dropped items. | 1 log line per generation |
 
-## 11. Traceability
+## 13. Traceability
 
 | Req | Goal / Decision | Module(s) | Likely files/areas | Verification |
 |---|---|---|---|---|
@@ -175,24 +216,27 @@ sequenceDiagram
 | AC-17–19 | D9 | server | `brief/routes.ts` | `.it.test.ts` / unit |
 | AC-20 | D1 | server | `project-context/service.ts`, `repository.ts` | unit / `.it.test.ts` |
 | AC-21–25, 29–30 | D3 | client | `OverviewTab/_components/PrBrief/`, `messages/en/brief.json` | RTL |
-| AC-26–28 | D3 | client | `page.tsx`, `DiffTab`, `diff-viewer/*` | RTL; e2e flow optional |
+| AC-26–28 | D3 | client | `page.tsx`, `DiffTab`, `diff-viewer/*`, `PrBrief/helpers.ts` | RTL; e2e flow optional |
+| AC-31–35, 37 | D11–D13 | client | `page.tsx`, `DiffTab`, `diff-viewer/{DiffViewer,FileCard,CodeLine,styles}` | RTL with stubbed `scrollIntoView`; include flat "original" order and `matchMedia` reduced-motion |
+| AC-36 | D14 | client | `OverviewTab/_components/PrBrief/`, `messages/en/brief.json` | RTL |
 | NFR-1–5 | D7, D8 | server | as above | unit / `.it.test.ts` |
 | Contract | D3 | both copies | `contracts/brief.ts` | `diff` of both copies; typecheck |
 
-## 12. Verification hints
+## 14. Verification hints
 
 Server: `pnpm --dir server test`; `pnpm --dir server exec vitest run .it.test` for Postgres-backed tests (needs Docker). Client: `pnpm --dir client test`. Tests are named `it('AC-n: …')`. Typecheck both modules. A mock LLM that records calls verifies AC-4 and NFR-2.
 
-## 13. Open questions
+## 15. Open questions
 
 None blocking, none minor. All defaults were chosen and recorded in §6.
 
-## 14. Out of scope
+## 16. Out of scope
 
-Verdict banner and PR score; expandable risk explanation; Prior PRs / `history`; auto-deriving intent; auto-regenerating on a stale brief; reading hunk bodies; a per-brief spec picker.
+Verdict banner and PR score; expandable risk explanation; Prior PRs / `history`; auto-deriving intent; auto-regenerating on a stale brief; reading hunk bodies; a per-brief spec picker; expanding unrendered context between hunks; a message on line fallback (rejected by user); fading highlight; old-side (`del`) line targets.
 
-## 15. Changelog
+## 17. Changelog
 
 | Date | Change | Reason / source |
 |---|---|---|
 | 2026-10-04 | Initial spec | Feature request; Pass 1 answers Q1, Q2, Q4, Q7; defaults for Q3, Q5, Q6 |
+| 2026-10-06 | Line-level deep link: AC-26 amended; AC-31–37 added; D11–D14; §2, §4, §5, §7 updated; new §8 Inputs & provenance (moved from §7) and §10 Edge cases; sections renumbered, cross-refs fixed; status approved → clarified pending re-approval | Mentor feedback; user answers Q0=A, Q1=A, Q5=B, defaults Q2–Q4 |
