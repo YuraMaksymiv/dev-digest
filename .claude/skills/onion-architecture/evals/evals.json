@@ -1,0 +1,80 @@
+{
+  "skill_name": "onion-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "name": "notifications-module-review",
+      "prompt": "I just wrote a new `notifications` module for the server (the files under server/src/modules/notifications/ in the input folder). Can you review it for architecture / layering problems before I open a PR? For each problem give file:line, what's wrong and how to fix it. Write your review to review.md.",
+      "expected_output": "A review that finds the three layering violations — direct Drizzle query in routes.ts, a concrete GitHub adapter constructed inside service.ts, and node:fs I/O inside helpers.ts — with a correct relocation for each, and does not flag the conforming repository.ts.",
+      "files": ["fixtures/01-notifications-module"],
+      "assertions": [
+        {
+          "id": "routes-queries-db",
+          "text": "Flags routes.ts for querying the database directly (drizzle-orm / db/schema / container.db in the GET handler) and says the query belongs in NotificationRepository"
+        },
+        {
+          "id": "service-constructs-concrete-adapter",
+          "text": "Flags service.ts for importing and constructing OctokitGitHubClient and says to depend on the GitHubClient port resolved from the Container (container.github) instead"
+        },
+        {
+          "id": "helpers-not-pure",
+          "text": "Flags helpers.ts for doing filesystem I/O (node:fs/promises readFile) and says template loading must move out of helpers (service/adapter), keeping interpolate pure"
+        },
+        {
+          "id": "no-false-positive-repository",
+          "text": "Does not report repository.ts as an architecture violation (it is the one file allowed to import drizzle-orm and db/schema, and it returns mapped types)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "labels-module-review",
+      "prompt": "Here's the `labels` module I added (server/src/modules/labels/ in the input folder) — GET and PUT labels on a PR. Anything off with how it's structured? Give me concrete findings with file:line and a suggested fix. Write your review to review.md.",
+      "expected_output": "A review that finds the three violations — repository leaks $inferSelect rows (LabelRow/PullRow) into the service and out over the wire, the delete → insert → update write runs without a transaction, and the service takes FastifyReply and sets status codes — and does not flag the pure helpers.ts.",
+      "files": ["fixtures/02-labels-module"],
+      "assertions": [
+        {
+          "id": "repository-leaks-rows",
+          "text": "Flags that the repository returns Drizzle `$inferSelect` row types (LabelRow and/or PullRow) to the service instead of mapping to contract types at the repository edge"
+        },
+        {
+          "id": "missing-transaction",
+          "text": "Flags that LabelService.replace runs deleteForPull → insertMany → touchPull without a transaction, and says the service should open the transaction and pass tx to the repository methods"
+        },
+        {
+          "id": "fastify-in-service",
+          "text": "Flags that service.ts imports FastifyReply / sets reply.status, and says HTTP status mapping belongs in routes.ts (e.g. service throws NotFoundError)"
+        },
+        {
+          "id": "no-false-positive-helpers",
+          "text": "Does not report helpers.ts as an architecture violation (normalizeLabels is pure)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reviewer-core-summary-review",
+      "prompt": "I added `summarizeReview` (reviewer-core/src/review/summarize.ts in the input folder) so we get a one-paragraph summary after each review run. Before I export it from the reviewer-core barrel, can you check whether it fits how that package is supposed to be built? List problems with file:line and how to fix them. Write your review to review.md.",
+      "expected_output": "A review that finds the three violations of reviewer-core's infrastructure-free rule — a concrete OpenRouterProvider constructed from process.env instead of an injected LLMProvider, filesystem reads of the prompt, and direct Postgres writes — says persistence and prompt loading belong to the server caller, and does not flag format.ts.",
+      "files": ["fixtures/03-reviewer-core-summary"],
+      "assertions": [
+        {
+          "id": "concrete-llm-not-injected",
+          "text": "Flags summarize.ts for importing/constructing OpenRouterProvider (with process.env key) and says the LLMProvider must be injected via the input instead"
+        },
+        {
+          "id": "fs-io-in-core",
+          "text": "Flags summarize.ts for reading the prompt from disk with node:fs and says the prompt should be passed in as a resolved string by the caller"
+        },
+        {
+          "id": "db-write-in-core",
+          "text": "Flags summarize.ts for writing to Postgres (postgres client / agent_runs update) and says persistence belongs to the server caller (repository), not reviewer-core"
+        },
+        {
+          "id": "no-false-positive-format",
+          "text": "Does not report format.ts as an architecture violation (it is pure)"
+        }
+      ]
+    }
+  ]
+}

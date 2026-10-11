@@ -8,6 +8,8 @@ import { EVAL_MODEL, MAX_TURNS, SPAWN_TOOLS } from "../config.js";
 import { REPO_ROOT } from "../artifacts/paths.js";
 import { subscriptionEnv } from "./env.js";
 
+const MUTATING_TOOLS = ["Bash", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch"];
+
 export interface Metrics {
   durationMs: number;
   inputTokens: number;
@@ -65,6 +67,10 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
     permissionMode: "bypassPermissions", // safe: evals only read/plan and tools are allow-listed
     systemPrompt,
     allowedTools,
+    // allowedTools only auto-approves; under bypassPermissions every other tool would still run.
+    // `tools` sets the base toolset, and disallowedTools blocks anything mutating not asked for.
+    tools: allowedTools,
+    disallowedTools: MUTATING_TOOLS.filter((t) => !allowedTools.includes(t)),
     cwd: opts.cwd ?? REPO_ROOT,
     // Default: do NOT load on-disk config — isolates the injected artifact. workflowTask overrides.
     settingSources: opts.settingSources ?? [],
