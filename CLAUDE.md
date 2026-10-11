@@ -125,6 +125,34 @@ rules to avoid redundant re-reading of the same diff/files across agents:
   Their independence is what catches each other's blind spots — don't merge
   them purely to save tokens; that's a coverage trade-off, not a free win.
 
+## Harness evals (`evals/`)
+
+Evals for `.claude/skills/*`, `.claude/agents/*` and `CLAUDE.md` routing. Run from `evals/`
+(`pnpm install` once); model runs use the Claude Code subscription unless `EVAL_BACKEND=openrouter`.
+
+- `pnpm eval:quality` — static SKILL.md gate, no model. Blocking in CI.
+- `pnpm eval:repeat <path> -n 2 --label <name>` — a labeled series; `pnpm eval:delta <a> <b>` diffs two.
+- `pnpm eval:benchmark skills/<name> -n 2` — with vs without the artifact.
+- `pnpm eval:workflow` — live harness: dispatch, skill activation, CLAUDE.md routing (read-only tools).
+
+| Change | Minimum check |
+|---|---|
+| `.claude/skills/**` | `eval:quality` + that skill's eval (`eval:repeat skills/<name>`) |
+| `.claude/agents/**` | that agent's eval + `eval:workflow` |
+| `CLAUDE.md` / routing rules | `eval:workflow` |
+| eval case or grader (`evals/**`) | re-run the affected series and re-save its baseline label |
+
+A new skill ships with `evals/skills/<name>/<name>.cases.ts`; fixtures live in `evals/`, never
+inside the skill.
+
+## Read when
+
+| Task | Read first |
+|---|---|
+| Adding or changing an HTTP endpoint | [server/docs/api-surface.md](server/docs/api-surface.md) |
+| Changing the review pipeline | [reviewer-core/docs/pipeline.md](reviewer-core/docs/pipeline.md) |
+| Adding or moving a client component | [client/docs/component-anatomy.md](client/docs/component-anatomy.md) |
+
 ## Per-module docs
 
 Each module has its own `CLAUDE.md`, `README.md`, `docs/`, `specs/`,

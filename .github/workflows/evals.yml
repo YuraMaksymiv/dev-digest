@@ -1,0 +1,133 @@
+# Harness evals (evals/) — two jobs:
+#  - quality: `pnpm eval:quality`, static, no model, no secrets. BLOCKING.
+#  - model: runs only the suites the PR touches (scripts/ci-detect.mjs) on OpenRouter.
+#    REPORT-ONLY (continue-on-error) until a baseline is calibrated in CI. A changed skill/agent
+#    with no evals prints "SKIP <name> (no evals)". Never runs for fork PRs, so the secret never
+#    reaches untrusted code.
+#
+# All tiers use an anthropic/* slug: OpenRouter's Anthropic skin serves it to the Agent SDK
+# directly, so the tool tiers (agents/workflow) need no LiteLLM proxy. Override the model on a
+# manual run via the workflow_dispatch input.
+name: evals
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - '.claude/agents/**'
+      - 'CLAUDE.md'
+      - 'evals/**'
+      - '.github/workflows/evals.yml'
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'OpenRouter slug for the task and the judge'
+        default: 'anthropic/claude-haiku-4.5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: evals
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm eval:quality
+
+  model:
+    needs: quality
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: evals
+    env:
+      EVAL_BACKEND: openrouter
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      EVAL_MODEL: ${{ inputs.model || 'anthropic/claude-haiku-4.5' }}
+      EVAL_JUDGE_MODEL: ${{ inputs.model || 'anthropic/claude-haiku-4.5' }}
+      # Budget: one run per case and a hard turn cap per session.
+      EVAL_MAX_TURNS: '12'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+
+      - id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            RANGE="$BASE_SHA...HEAD"
+          else
+            RANGE="$(git rev-list --max-parents=0 HEAD | tail -1)...HEAD"
+          fi
+          CHANGED_FILES="$(git diff --name-only "$RANGE")" node scripts/ci-detect.mjs
+
+      - name: Skip reasons
+        run: |
+          for s in ${{ steps.detect.outputs.skipped_skills }}; do echo "SKIP skill $s (no evals)"; done
+          for a in ${{ steps.detect.outputs.skipped_agents }}; do echo "SKIP agent $a (no evals)"; done
+          if [ -z "$OPENROUTER_API_KEY" ]; then echo "SKIP model evals (OPENROUTER_API_KEY not set)"; fi
+
+      - name: Run touched suites
+        if: env.OPENROUTER_API_KEY != ''
+        env:
+          SKILLS: ${{ steps.detect.outputs.skills }}
+          AGENTS: ${{ steps.detect.outputs.agents }}
+          RUN_WORKFLOW: ${{ steps.detect.outputs.run_workflow }}
+        run: |
+          patterns=""
+          for s in $(echo "$SKILLS" | node -pe 'JSON.parse(require("fs").readFileSync(0)).join(" ")'); do
+            patterns="$patterns skills/$s/$s.eval.ts"
+          done
+          for a in $(echo "$AGENTS" | node -pe 'JSON.parse(require("fs").readFileSync(0)).join(" ")'); do
+            patterns="$patterns agents/$a/$a.eval.ts"
+          done
+          [ "$RUN_WORKFLOW" = "true" ] && patterns="$patterns workflow/"
+          if [ -z "$patterns" ]; then echo "No suites touched."; exit 0; fi
+          echo "Running:$patterns"
+          pnpm exec vitest run $patterns --no-file-parallelism
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "## Harness evals (report-only)"
+            echo "model: \`$EVAL_MODEL\`"
+            echo '```'
+            [ -f results/records.jsonl ] && node -e '
+              const rows = require("fs").readFileSync("results/records.jsonl","utf8").trim().split("\n").map(JSON.parse);
+              for (const r of rows) console.log((r.outcome ? "PASS " : "FAIL ") + r.nodeid.split(" > ").slice(-1)[0] + (r.score !== undefined ? "  score=" + r.score.toFixed(2) : ""));
+            ' || echo "no records"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
